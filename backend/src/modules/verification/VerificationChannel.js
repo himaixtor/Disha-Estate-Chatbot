@@ -8,7 +8,7 @@
  *   channelName: string
  */
 class VerificationChannel {
-  async sendCode(_mobileNumber, _code) {
+  async sendCode(_mobileNumber, _code, _uname) {
     throw new Error('VerificationChannel.sendCode must be implemented by a concrete channel.');
   }
 }

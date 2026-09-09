@@ -1,5 +1,5 @@
-const VerificationChannel = require('./VerificationChannel');
-const env = require('../../config/env');
+const VerificationChannel = require("./VerificationChannel");
+const env = require("../../config/env");
 
 /**
  * Real WhatsApp OTP delivery, against the provider contract Disha shared
@@ -22,49 +22,71 @@ const env = require('../../config/env');
  * you try variations from .env alone — see .env.example for what to try.
  */
 class WhatsAppOtpChannel extends VerificationChannel {
-  channelName = 'whatsapp';
+  channelName = "whatsapp";
 
-  async sendCode(mobileNumber, code) {
-    const payload = {
-  messaging_product: "whatsapp",
-  whatsapp_no: env.whatsapp.senderId, // e.g., "919999999999"
-  to: mobileNumber,              // e.g., "+919999999999"
-  type: "text",
-  text: {
-    body: `Your Disha Estate Management verification code is ${code}. It expires in 5 minutes. Do not share this code with anyone.`
-  }
-};
-    const response = await fetch(env.whatsapp.apiUrl, {
-  method: 'POST',
-  headers: {
-    'Authorization': `Bearer ${env.whatsapp.apiToken}`,
-    'Accept': 'application/json',
-    'Content-Type': 'application/json'
-  },
-  body: JSON.stringify(payload)
-});
+  async sendCode(mobileNumber, code, uname) {
+    const payloadArray = {
+      messaging_product: "whatsapp",
+      whatsapp_no: env.whatsapp.senderId,
+      to: mobileNumber,
+      type: "template",
+      template: {
+        name: "disha_estate_v1",
+        language: {
+          code: "en",
+        },
+        components: [
+          {
+            type: "HEADER",
+            parameters: [
+              {
+                type: "text",
+                text: String(uname),
+              },
+            ],
+          },
+          {
+            type: "BODY",
+            parameters: [
+              {
+                type: "text",
+                text: `verification code is ${code}. It expires in 5 minutes. Do not share this code with`,
+              },
+            ],
+          },
+        ],
+      },
+    };
 
-const result = await response.json();
-    // const res = await fetch(env.whatsapp.apiUrl, {
-    //   method: 'POST',
-    //   headers: {
-    //     'Content-Type': 'application/json',
-    //     [env.whatsapp.authHeader]: ` ${env.whatsapp.apiToken}`,
-    //   },
-    //   body: JSON.stringify({
-    //     messaging_product: 'whatsapp',
-    //     whatsapp_no: env.whatsapp.senderId,
-    //     to: mobileNumber, // already E.164 (+91...) by the time it reaches here — see mobileService.normalizeMobile
-    //     type: 'text',
-    //     text: {
-    //       body: `Your Disha Estate Management verification code is ${code}. It expires in 5 minutes. Do not share this code with anyone.`,
-    //     },
-    //   }),
-    // });
+    const response = await fetch(
+      env.whatsapp.apiUrl,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${env.whatsapp.apiToken}`,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify(payloadArray),
+      },
+    );
 
-    if (!response.ok) {
-      const body = await response.text().catch(() => '');
-      throw new Error(`WhatsApp OTP provider responded ${response.status}: ${body.slice(0, 200)}`);
+    const body = await response.text();
+    let result;
+    try {
+      result = JSON.parse(body);
+    } catch (_error) {
+      result = null;
+    }
+
+    console.log("WhatsApp provider response:", result ?? body);
+
+    const messageAccepted = Array.isArray(result?.messages)
+      && result.messages.length > 0;
+    if (!response.ok || !messageAccepted) {
+      throw new Error(
+        `WhatsApp OTP provider responded ${response.status}: ${body.slice(0, 200)}`,
+      );
     }
   }
 }

@@ -30,7 +30,6 @@ const STATES = Object.freeze({
   SHOW_RESULTS: 'SHOW_RESULTS',
   AI_SCHEME_QA: 'AI_SCHEME_QA',
 });
-
 // Where BACK sends you from each state. States with no entry either can't go
 // back (nothing to return to without discarding verified identity — blueprint
 // §26 says back must never corrupt captured lead data) or aren't a place a
@@ -92,7 +91,6 @@ async function submitName(sessionId, rawName) {
     await messagesRepo.add({ sessionId, responseType: 'bot', messageText: text });
     return { session: await reload(sessionId), reply: { text, options: null } };
   }
-
   await sessionsRepo.updateFields(sessionId, { name: rawName.trim(), state: STATES.COLLECT_MOBILE });
   const text = `Nice to meet you, ${rawName.trim()}! Please share your WhatsApp mobile number for instant updates.`;
   await messagesRepo.add({ sessionId, responseType: 'bot', messageText: text });
@@ -116,7 +114,7 @@ async function submitMobile(sessionId, rawMobile) {
   await sessionsRepo.updateFields(sessionId, { mobileNumber: normalized, state: STATES.SEND_OTP });
 
   try {
-    const response = await otpService.sendOtp({ sessionId, mobileNumber: normalized });
+    const response = await otpService.sendOtp({ sessionId, mobileNumber: normalized, name: session.name });
     console.log("whatsapp otp response", response);
   } catch (err) {
     // Provider failure — roll back to COLLECT_MOBILE (blueprint §D, Fig. D1:

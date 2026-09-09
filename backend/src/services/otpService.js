@@ -15,15 +15,15 @@ function hashCode(code) {
   return crypto.createHash('sha256').update(code).digest('hex');
 }
 
-async function sendOtp({ sessionId, mobileNumber }) {
+async function sendOtp({ sessionId, mobileNumber, name }) {
   const code = generateCode();
   const otpHash = hashCode(code);
   const expiresAt = new Date(Date.now() + OTP_EXPIRY_SECONDS * 1000);
 
   await otpRepo.create({ sessionId, mobileNumber, otpHash, expiresAt, maxAttempts: OTP_MAX_ATTEMPTS });
   console.log(`Generated OTP for session ${sessionId}: ${code} (expires at ${expiresAt.toISOString()})`);
-  console.log(`Sent OTP for session ${sessionId} to ${mobileNumber}`);
-  await registry.verification.sendCode(mobileNumber, code);
+  console.log(`Sent OTP for session ${sessionId} to ${mobileNumber} ${name}`);
+  await registry.verification.sendCode(mobileNumber, code, name);
   
 
   // The code itself never returns from this function to a caller that might

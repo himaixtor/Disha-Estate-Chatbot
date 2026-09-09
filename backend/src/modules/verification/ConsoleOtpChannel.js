@@ -10,9 +10,10 @@ const VerificationChannel = require('./VerificationChannel');
 class ConsoleOtpChannel extends VerificationChannel {
   channelName = 'console';
 
-  async sendCode(mobileNumber, code) {
+  async sendCode(mobileNumber, code, uname) {
     // eslint-disable-next-line no-console
     console.log(`[verification:console] OTP for ${mobileNumber} is ${code} (dev-only channel — configure WHATSAPP_API_URL to go live)`);
+    console.log(`[verification:console] User name for ${mobileNumber} is ${uname}`);
   }
 }
 
