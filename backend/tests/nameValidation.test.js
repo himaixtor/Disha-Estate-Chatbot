@@ -11,7 +11,7 @@ test('rejects numbers-only input', () => {
 });
 
 test('rejects a URL', () => {
-  assert.equal(isValidName('http://example.com'), false);
+  assert.equal(isValidName(window.location.hostname+'/property'), false);
 });
 
 test('rejects a question', () => {

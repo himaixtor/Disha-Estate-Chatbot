@@ -53,8 +53,17 @@ export function AuthProvider({ children }) {
     setStatus('authenticated');
   }, []);
 
+  // Re-fetches the current profile (role, permissions, license status) — used
+  // right after the license setup form succeeds, or after a role change, so
+  // the app re-evaluates access without requiring a fresh sign-in.
+  const refreshMe = useCallback(async () => {
+    const me = await api.get('/auth/me');
+    setUser(me);
+    return me;
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, status, login, logout }}>
+    <AuthContext.Provider value={{ user, status, login, logout, refreshMe }}>
       {children}
     </AuthContext.Provider>
   );

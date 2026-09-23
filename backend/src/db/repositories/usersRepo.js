@@ -44,4 +44,8 @@ async function setActive(uid, isActive) {
   await pool.query('UPDATE users SET is_active = :isActive WHERE uid = :uid', { uid, isActive: isActive ? 1 : 0 });
 }
 
-module.exports = { findByEmail, findByUid, create, list, recordFailedLogin, resetFailedLogins, setActive };
+async function setRole(uid, roleUid) {
+  await pool.query('UPDATE users SET role_uid = :roleUid WHERE uid = :uid', { uid, roleUid });
+}
+
+module.exports = { findByEmail, findByUid, create, list, recordFailedLogin, resetFailedLogins, setActive, setRole };

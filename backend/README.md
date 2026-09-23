@@ -22,6 +22,51 @@ npm run dev                 # http://localhost:5002
 `GET /api/v1/health` works even before you've set up the database — it reports
 `degraded` instead of crashing so you can confirm the server itself is up.
 
+The first time the `super_admin` account (created above) signs in to the
+Admin Portal, it will be forced onto a **License Setup** screen instead of
+the dashboard — the system has no license installed yet. Filling in that
+form issues `backend/storage/license.txt` (gitignored) and unlocks the rest
+of the portal for every user. See "License protection" below.
+
+## License protection
+
+Every authenticated Admin Portal API route (except `/auth/*` and
+`/licenses/*` themselves) is gated by `src/middleware/licenseGuard.js`: if
+the system has no license, or the installed one is tampered, expired or
+inactive, every user is blocked until a super admin fixes it from License
+Management.
+
+`backend/storage/license.txt` holds an AES-256-GCM **authenticated**
+encryption of the license's fields, keyed by `LICENSE_ENCRYPTION_KEY`. GCM's
+authentication tag means editing the file by even one byte makes it fail to
+decrypt — that failure *is* the tamper signal (`src/services/licenseFileService.js`),
+no separate checksum scheme needed. The file's own hash is also stored on the
+`licenses` DB row (`license_file_hash`), so a file that decrypts fine but no
+longer matches any (un-tampered) DB record is treated as tampered too. Live
+status/expiry always comes from the database, not the file, so
+activating/suspending/renewing a license in the UI takes effect immediately
+without needing to reissue `license.txt`.
+
+Set a real `LICENSE_ENCRYPTION_KEY` in production — the fallback in
+`.env.example` is dev-only.
+
+## Roles & permissions
+
+Two independent things live on the `roles` table:
+
+- The `can_*` booleans are **feature permissions** — what a signed-in user
+  with that role is allowed to do (view chats, manage users, etc.), enforced
+  per-route by `src/middleware/rbac.js`.
+- `role_level` is the **management hierarchy** — who is allowed to
+  create/edit/delete a role, or assign it to a user, enforced by
+  `src/services/rolesService.js`:
+  - `super_admin` — every level, including other super_admin/admin roles.
+  - `admin` — `manager`, `viewer`, `other` only (never `admin` or `super_admin`).
+  - `manager` / `viewer` / `other` — no role-management scope of their own.
+
+The seeded `super_admin` role is a system role (`is_system = 1`) and cannot
+be deleted or have its level changed.
+
 ## Module architecture
 
 `ENABLED_MODULES` in `.env` controls which pluggable implementations are wired

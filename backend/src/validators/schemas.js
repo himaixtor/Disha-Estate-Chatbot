@@ -53,18 +53,43 @@ const chatLocation = z.object({
 
 const licenseCreate = z.object({
   licenseId: z.string().min(3).max(100),
-  clientName: z.string().optional(),
-  companyEmail: z.string().email().optional(),
-  productName: z.string().optional(),
+  clientName: z.string().min(2).max(255),
+  companyAddress: z.string().max(500).optional(),
+  companyContact: z.string().max(50).optional(),
+  companyEmail: z.string().email(),
+  productName: z.string().min(2).max(100),
   deploymentType: z.enum(['cloud', 'on_premise', 'hybrid']).optional(),
-  maxUsers: z.number().int().optional(),
-  maxAdminUsers: z.number().int().optional(),
+  maxUsers: z.number().int().min(1).optional(),
+  maxAdminUsers: z.number().int().min(1).optional(),
   maxTokenUsageCharge: z.number().optional(),
   licenseType: z.enum(['trial', 'standard', 'enterprise']).optional(),
   environment: z.enum(['development', 'staging', 'production']).optional(),
-  validFrom: z.string().optional(),
-  validTill: z.string().optional(),
+  remarks: z.string().max(2000).optional(),
+  validFrom: z.string().min(4),
+  validTill: z.string().min(4),
 });
+
+const ROLE_LEVELS = ['super_admin', 'admin', 'manager', 'viewer', 'other'];
+
+const roleCreate = z.object({
+  roleName: z.string().min(2).max(100),
+  roleLevel: z.enum(ROLE_LEVELS),
+  canViewAllChats: z.boolean().optional(),
+  canDownload: z.boolean().optional(),
+  canManageUsers: z.boolean().optional(),
+  canAccessDashboard: z.boolean().optional(),
+  canAccessTrainAi: z.boolean().optional(),
+  canAccessTokenUsage: z.boolean().optional(),
+  canAccessScheduler: z.boolean().optional(),
+  canAccessLicenseManagement: z.boolean().optional(),
+  canViewAllAdminChats: z.boolean().optional(),
+  canManageCategories: z.boolean().optional(),
+  canManageRoles: z.boolean().optional(),
+});
+
+const roleUpdate = roleCreate.partial();
+
+const setUserRole = z.object({ roleUid: z.string().uuid() });
 
 module.exports = {
   login, refreshToken, createUser,
@@ -72,5 +97,5 @@ module.exports = {
   subcategoryCreate, subcategoryUpdate,
   serviceSectorCreate, serviceSectorUpdate,
   chatName, chatMobile, chatOtp, chatCategory, chatSubcategory, chatLocation,
-  licenseCreate,
+  licenseCreate, roleCreate, roleUpdate, setUserRole,
 };

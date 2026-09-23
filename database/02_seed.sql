@@ -4,13 +4,34 @@
 SET NAMES utf8mb4;
 
 -- ---------- Roles ----------
-INSERT IGNORE INTO roles
+-- role_level drives the management hierarchy (who may create/edit/assign a role —
+-- see backend/src/services/rolesService.js): super_admin manages everything,
+-- admin manages manager/viewer/other, and manager/viewer/other cannot manage roles.
+-- Uses ON DUPLICATE KEY UPDATE (not INSERT IGNORE) so re-running this file keeps
+-- the built-in roles' permissions in sync with this source of truth.
+INSERT INTO roles
   (uid, role_name, can_view_all_chats, can_download, can_manage_users, can_access_dashboard,
    can_access_train_ai, can_access_token_usage, can_access_scheduler, can_access_license_management,
-   can_view_all_admin_chats)
+   can_view_all_admin_chats, can_manage_categories, can_manage_roles, role_level, is_system)
 VALUES
-  ('11111111-1111-4111-8111-111111111111', 'super_admin', 1, 1, 1, 1, 1, 1, 1, 1, 1),
-  ('22222222-2222-4222-8222-222222222222', 'viewer',      1, 0, 0, 1, 0, 0, 0, 0, 0);
+  ('11111111-1111-4111-8111-111111111111', 'super_admin', 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 'super_admin', 1),
+  ('33333333-3333-4333-8333-333333333333', 'admin',       1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 'admin',       0),
+  ('44444444-4444-4444-8444-444444444444', 'manager',     1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 'manager',     0),
+  ('22222222-2222-4222-8222-222222222222', 'viewer',      1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 'viewer',      0)
+ON DUPLICATE KEY UPDATE
+  can_view_all_chats = VALUES(can_view_all_chats),
+  can_download = VALUES(can_download),
+  can_manage_users = VALUES(can_manage_users),
+  can_access_dashboard = VALUES(can_access_dashboard),
+  can_access_train_ai = VALUES(can_access_train_ai),
+  can_access_token_usage = VALUES(can_access_token_usage),
+  can_access_scheduler = VALUES(can_access_scheduler),
+  can_access_license_management = VALUES(can_access_license_management),
+  can_view_all_admin_chats = VALUES(can_view_all_admin_chats),
+  can_manage_categories = VALUES(can_manage_categories),
+  can_manage_roles = VALUES(can_manage_roles),
+  role_level = VALUES(role_level),
+  is_system = VALUES(is_system);
 
 -- Admin user is NOT seeded here — its password must go through the app's own
 -- hashing (bcryptjs), not a hand-typed hash in SQL. Run:

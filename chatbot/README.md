@@ -12,7 +12,13 @@ Portal, an internal tool, is React — see `../chatbot-admin/`.)
 ## Try it
 
 1. Start the backend (`cd ../backend && npm run dev`).
-2. Open `demo/index.html` directly in a browser (or serve it: `npx serve demo`).
+2. Either open `demo/index.html` directly in a browser (file://, no server needed),
+   or serve it over HTTP with `npx serve .` from *this* `chatbot/` folder and browse to
+   its `/demo/` path. Don't `serve demo` on its own — `demo/index.html` loads the widget
+   via `../src/widget.js`, and a relative `..` can't escape an HTTP server's document
+   root, so pointing a static server straight at `demo/` 404s on the widget script and
+   the chat bubble never appears. (The root `npm run dev:widget` already does this
+   correctly — it serves `chatbot/` on port 5500 with a redirect from `/` to `/demo/`.)
 3. Click the chat bubble, bottom-right.
 
 ## Re-theming for a different project
@@ -30,7 +36,7 @@ Set `window.DishaChatbotConfig` before the script tag loads:
     accentColor: '#654321',
   };
 </script>
-<script src="https://cdn.example.com/widget.js"></script>
+<script src="https://cdn.disha-estate-management.vercel.app/widget.js"></script>
 ```
 
 Nothing else in the widget needs to change — this is the "Branding / theme"

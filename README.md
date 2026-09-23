@@ -19,6 +19,37 @@ chatbot-admin/    React + Vite admin portal (leads, taxonomy, users, licenses)
 database/         SQL schema + seed data
 ```
 
+## Quick start: run everything with one command
+
+First-time setup (installs the backend and admin portal dependencies; the
+widget needs none):
+
+```
+npm install
+npm run setup
+```
+
+Then, from the repo root:
+
+```
+npm run dev     # starts backend (5002), admin portal (5174), widget demo (5500)
+npm run kill    # stops all three, however they were started
+```
+
+`npm run dev` runs all three apps together and prints their output
+side-by-side, prefixed `[BACKEND]` / `[ADMIN]` / `[WIDGET]`. Press `Ctrl+C`
+once and all three shut down together, handing you back the prompt.
+
+`npm run kill` is the fallback for when that doesn't happen cleanly (closed
+the terminal window, machine went to sleep mid-session, etc.) — it finds
+whatever is listening on ports 5002/5174/5500 and stops it, then sweeps any
+leftover nodemon/vite/concurrently process from this project specifically,
+so nothing quietly respawns in the background. Safe to run any time,
+whether anything is running or not.
+
+You still need `backend/.env` filled in (see below) and a running MySQL
+server for the backend's DB-backed routes to work — `npm run dev` starts the
+backend regardless and just logs a warning if it can't reach the database.
 ## 1. Backend (`backend/`)
 
 ```

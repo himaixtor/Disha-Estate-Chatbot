@@ -1,12 +1,20 @@
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '../api/client';
+import { useAuth } from '../context/AuthContext';
+import { assignableLevels } from '../roleLevels';
 import Modal from '../components/Modal';
 
 export default function UsersPage() {
+  const { user: me } = useAuth();
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
   const [error, setError] = useState(null);
   const [modal, setModal] = useState(false);
+
+  const myLevels = assignableLevels(me?.roleLevel);
+  // Only roles whose level I'm allowed to manage/assign (blueprint §30 update
+  // — "admin can only set roles for manager, viewer and other category").
+  const assignableRoles = roles.filter((r) => myLevels.includes(r.role_level));
 
   const load = useCallback(() => {
     Promise.all([api.get('/admin/users'), api.get('/admin/roles')])
@@ -23,19 +31,38 @@ export default function UsersPage() {
   }
 
   async function toggleActive(u) {
-    await api.patch(`/admin/users/${u.uid}/active`, { isActive: !u.is_active });
-    load();
+    try {
+      await api.patch(`/admin/users/${u.uid}/active`, { isActive: !u.is_active });
+      load();
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  async function changeRole(u, roleUid) {
+    if (!roleUid || roleUid === u.role_uid) return;
+    try {
+      await api.patch(`/admin/users/${u.uid}/role`, { roleUid });
+      load();
+    } catch (e) {
+      setError(e.message);
+    }
   }
 
   function roleName(roleUid) {
     return roles.find((r) => r.uid === roleUid)?.role_name || roleUid;
   }
 
+  function canManageUser(u) {
+    const role = roles.find((r) => r.uid === u.role_uid);
+    return role ? myLevels.includes(role.role_level) : false;
+  }
+
   return (
     <>
       <div className="page-header">
         <h1>Users</h1>
-        <button className="btn primary" onClick={() => setModal(true)}>+ New user</button>
+        {assignableRoles.length > 0 && <button className="btn primary" onClick={() => setModal(true)}>+ New user</button>}
       </div>
 
       {error && <div className="error-text">{error}</div>}
@@ -45,15 +72,31 @@ export default function UsersPage() {
           <table>
             <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th></th></tr></thead>
             <tbody>
-              {users.map((u) => (
-                <tr key={u.uid}>
-                  <td>{u.name}</td>
-                  <td>{u.email}</td>
-                  <td>{roleName(u.role_uid)}</td>
-                  <td><span className={`badge ${u.is_active ? 'active' : 'inactive'}`}>{u.is_active ? 'active' : 'inactive'}</span></td>
-                  <td><button className="btn danger" onClick={() => toggleActive(u)}>{u.is_active ? 'Deactivate' : 'Activate'}</button></td>
-                </tr>
-              ))}
+              {users.map((u) => {
+                const manageable = canManageUser(u);
+                return (
+                  <tr key={u.uid}>
+                    <td>{u.name}</td>
+                    <td>{u.email}</td>
+                    <td>
+                      {manageable && assignableRoles.length > 0 ? (
+                        <select value={u.role_uid} onChange={(e) => changeRole(u, e.target.value)}>
+                          {!assignableRoles.some((r) => r.uid === u.role_uid) && (
+                            <option value={u.role_uid}>{roleName(u.role_uid)}</option>
+                          )}
+                          {assignableRoles.map((r) => <option key={r.uid} value={r.uid}>{r.role_name}</option>)}
+                        </select>
+                      ) : roleName(u.role_uid)}
+                    </td>
+                    <td><span className={`badge ${u.is_active ? 'active' : 'inactive'}`}>{u.is_active ? 'active' : 'inactive'}</span></td>
+                    <td>
+                      <button className="btn danger" disabled={!manageable} onClick={() => toggleActive(u)}>
+                        {u.is_active ? 'Deactivate' : 'Activate'}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
@@ -61,7 +104,7 @@ export default function UsersPage() {
 
       {modal && (
         <Modal title="New user" onClose={() => setModal(false)}>
-          <UserForm roles={roles} onSubmit={createUser} onCancel={() => setModal(false)} />
+          <UserForm roles={assignableRoles} onSubmit={createUser} onCancel={() => setModal(false)} />
         </Modal>
       )}
     </>

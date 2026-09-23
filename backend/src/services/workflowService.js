@@ -146,6 +146,18 @@ async function verifyOtp(sessionId, code) {
     await otpService.verifyOtp({ sessionId, code });
   } catch (err) {
     await messagesRepo.add({ sessionId, responseType: 'bot', messageText: err.message });
+
+    if (err.code === 'OTP_ATTEMPTS_EXHAUSTED') {
+      // 5 wrong codes in a row — don't leave the user stuck re-guessing
+      // against the same exhausted code. Send them back to COLLECT_MOBILE
+      // so re-submitting their number issues a fresh OTP (blueprint §D:
+      // "VERIFY_OTP --> COLLECT_MOBILE: attempts exhausted").
+      await sessionsRepo.updateFields(sessionId, { state: STATES.COLLECT_MOBILE });
+      const text = 'Please share your WhatsApp mobile number again to receive a new verification code.';
+      await messagesRepo.add({ sessionId, responseType: 'bot', messageText: text });
+      return { session: await reload(sessionId), reply: { text, options: null } };
+    }
+
     throw err;
   }
 
@@ -252,7 +264,6 @@ async function matchInventory(sessionId) {
     category: category?.name,
     subCategory: subcategory?.name,
     location: sector?.sector_name,
-    sessionId,
   });
 
   if (!result.matched) {

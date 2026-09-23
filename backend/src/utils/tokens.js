@@ -7,6 +7,7 @@ function signAccessToken(user) {
     {
       sub: user.uid,
       role: user.role_uid,
+      roleLevel: user.roleLevel || null,
       permissions: user.permissions || {},
     },
     env.jwt.accessSecret,

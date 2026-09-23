@@ -1,4 +1,5 @@
 require('dotenv').config();
+const path = require('path');
 
 function parseList(value, fallback = []) {
   if (!value) return fallback;
@@ -8,6 +9,10 @@ function parseList(value, fallback = []) {
 const env = {
   nodeEnv: process.env.NODE_ENV || 'development',
   port: parseInt(process.env.PORT || '5002', 10),
+  // Used only for the friendly startup banner in server.js — has zero effect
+  // on how the server actually listens. Set PUBLIC_URL in .env to the real
+  // public address once you have one (e.g. https://chat.dishaestate.com:3001).
+  publicUrl: process.env.PUBLIC_URL || null,
 
   db: {
     host: process.env.DB_HOST || 'localhost',
@@ -40,7 +45,17 @@ const env = {
   inventory: {
     apiUrl: process.env.INVENTORY_API_URL || '',
     apiKey: process.env.INVENTORY_API_KEY || '',
-    resultsBaseUrl: process.env.INVENTORY_RESULTS_BASE_URL || 'https://example.com/properties',
+    resultsBaseUrl: process.env.INVENTORY_RESULTS_BASE_URL || 'https://disha-estate-management.vercel.app/property',
+  },
+
+  // License protection (blueprint §40 update) — license.txt is AES-256-GCM
+  // authenticated-encrypted, so any direct edit to the file breaks GCM's auth
+  // tag and is detected as tampering on the very next read; no separate
+  // signature scheme is needed. LICENSE_ENCRYPTION_KEY is hashed into a
+  // 32-byte key regardless of the raw string's length, so any passphrase works.
+  license: {
+    encryptionKey: process.env.LICENSE_ENCRYPTION_KEY || 'dev-only-license-key-change-me',
+    filePath: process.env.LICENSE_FILE_PATH || path.join(__dirname, '..', '..', 'storage', 'license.txt'),
   },
 };
 

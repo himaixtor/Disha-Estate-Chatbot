@@ -58,4 +58,28 @@ async function setStatus(id, status) {
   await pool.query('UPDATE licenses SET status = :status WHERE id = :id', { id, status });
 }
 
-module.exports = { list, findById, findByLicenseId, create, setStatus };
+// license.txt binding (see licenseFileService) — the file's own sha256 is
+// stored here so a swapped-in or stale-but-still-decryptable file can be
+// told apart from the one that was actually issued for this row.
+async function setFileMeta(id, { filePath, fileHash }) {
+  await pool.query(
+    'UPDATE licenses SET license_file_path = :filePath, license_file_hash = :fileHash WHERE id = :id',
+    { id, filePath, fileHash }
+  );
+}
+
+async function clearTamper(id) {
+  await pool.query('UPDATE licenses SET is_tampered = 0, tamper_detected_at = NULL WHERE id = :id', { id });
+}
+
+// Best-effort: flags whichever DB row currently claims the given file path as
+// tampered, so the admin UI can surface which license failed integrity
+// validation even though the file itself could no longer be trusted to say.
+async function markTamperedByFilePath(filePath) {
+  await pool.query(
+    'UPDATE licenses SET is_tampered = 1, tamper_detected_at = NOW() WHERE license_file_path = :filePath',
+    { filePath }
+  );
+}
+
+module.exports = { list, findById, findByLicenseId, create, setStatus, setFileMeta, clearTamper, markTamperedByFilePath };

@@ -3,6 +3,7 @@ const { ok } = require('../utils/apiResponse');
 const asyncHandler = require('../utils/asyncHandler');
 const usersRepo = require('../db/repositories/usersRepo');
 const rolesRepo = require('../db/repositories/rolesRepo');
+const { buildSessionUser } = require('../services/sessionPayload');
 
 const login = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
@@ -25,10 +26,7 @@ const logout = asyncHandler(async (req, res) => {
 const me = asyncHandler(async (req, res) => {
   const user = await usersRepo.findByUid(req.user.uid);
   const role = await rolesRepo.findByUid(user.role_uid);
-  ok(res, {
-    uid: user.uid, email: user.email, name: user.name,
-    role: role?.role_name, permissions: rolesRepo.toPermissions(role),
-  });
+  ok(res, await buildSessionUser(user, role));
 });
 
 module.exports = { login, refresh, logout, me };

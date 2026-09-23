@@ -1,0 +1,21 @@
+{
+  "name": "disha-estate-chatbot",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Root workspace: run every app (backend API, admin portal, widget demo) with one command and stop them all with another.",
+  "scripts": {
+    "setup": "npm install --prefix backend && npm install --prefix chatbot-admin",
+    "dev": "concurrently -k -n BACKEND,ADMIN,WIDGET -c blue,magenta,green \"npm:dev:backend\" \"npm:dev:admin\" \"npm:dev:widget\"",
+    "dev:backend": "npm run dev --prefix backend",
+    "dev:admin": "npm run dev --prefix chatbot-admin",
+    "dev:widget": "serve chatbot -l 5500",
+    "kill": "node scripts/kill.js"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "serve": "^14.2.4"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

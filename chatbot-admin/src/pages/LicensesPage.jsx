@@ -68,14 +68,26 @@ export default function LicensesPage() {
   );
 }
 
+// Field set mirrors LicenseSetupPage.jsx's mandatory form — schemas.licenseCreate
+// requires clientName, companyEmail, productName, validFrom and validTill, so
+// re-issuing/adding a license from here needs the same fields, not just the
+// original short set (licenseId/clientName/companyEmail/type/env/deployment/maxUsers).
 function LicenseForm({ onSubmit, onCancel }) {
   const [licenseId, setLicenseId] = useState('');
   const [clientName, setClientName] = useState('');
   const [companyEmail, setCompanyEmail] = useState('');
+  const [companyAddress, setCompanyAddress] = useState('');
+  const [companyContact, setCompanyContact] = useState('');
+  const [productName, setProductName] = useState('Disha Estate Management');
   const [licenseType, setLicenseType] = useState('standard');
   const [environment, setEnvironment] = useState('development');
   const [deploymentType, setDeploymentType] = useState('cloud');
   const [maxUsers, setMaxUsers] = useState(10);
+  const [maxAdminUsers, setMaxAdminUsers] = useState(3);
+  const [maxTokenUsageCharge, setMaxTokenUsageCharge] = useState(0);
+  const [validFrom, setValidFrom] = useState(new Date().toISOString().slice(0, 10));
+  const [validTill, setValidTill] = useState(new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10));
+  const [remarks, setRemarks] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
@@ -85,8 +97,12 @@ function LicenseForm({ onSubmit, onCancel }) {
     setError(null);
     try {
       await onSubmit({
-        licenseId, clientName: clientName || undefined, companyEmail: companyEmail || undefined,
-        licenseType, environment, deploymentType, maxUsers: Number(maxUsers) || 0,
+        licenseId, clientName, companyEmail, productName,
+        companyAddress: companyAddress || undefined, companyContact: companyContact || undefined,
+        licenseType, environment, deploymentType,
+        maxUsers: Number(maxUsers) || 0, maxAdminUsers: Number(maxAdminUsers) || 0,
+        maxTokenUsageCharge: Number(maxTokenUsageCharge) || 0,
+        validFrom, validTill, remarks: remarks || undefined,
       });
     } catch (err) {
       setError(err.message);
@@ -96,45 +112,79 @@ function LicenseForm({ onSubmit, onCancel }) {
 
   return (
     <form onSubmit={submit}>
-      <div className="field">
-        <label>License ID</label>
-        <input value={licenseId} onChange={(e) => setLicenseId(e.target.value)} required minLength={3} />
+      <div className="field-grid">
+        <div className="field">
+          <label>License ID</label>
+          <input value={licenseId} onChange={(e) => setLicenseId(e.target.value)} required minLength={3} />
+        </div>
+        <div className="field">
+          <label>Product name</label>
+          <input value={productName} onChange={(e) => setProductName(e.target.value)} required minLength={2} />
+        </div>
+        <div className="field">
+          <label>Client name</label>
+          <input value={clientName} onChange={(e) => setClientName(e.target.value)} required minLength={2} />
+        </div>
+        <div className="field">
+          <label>Company email</label>
+          <input type="email" value={companyEmail} onChange={(e) => setCompanyEmail(e.target.value)} required />
+        </div>
+        <div className="field">
+          <label>Company contact</label>
+          <input value={companyContact} onChange={(e) => setCompanyContact(e.target.value)} />
+        </div>
+        <div className="field">
+          <label>Company address</label>
+          <input value={companyAddress} onChange={(e) => setCompanyAddress(e.target.value)} />
+        </div>
+        <div className="field">
+          <label>License type</label>
+          <select value={licenseType} onChange={(e) => setLicenseType(e.target.value)}>
+            <option value="trial">Trial</option>
+            <option value="standard">Standard</option>
+            <option value="enterprise">Enterprise</option>
+          </select>
+        </div>
+        <div className="field">
+          <label>Environment</label>
+          <select value={environment} onChange={(e) => setEnvironment(e.target.value)}>
+            <option value="development">Development</option>
+            <option value="staging">Staging</option>
+            <option value="production">Production</option>
+          </select>
+        </div>
+        <div className="field">
+          <label>Deployment type</label>
+          <select value={deploymentType} onChange={(e) => setDeploymentType(e.target.value)}>
+            <option value="cloud">Cloud</option>
+            <option value="on_premise">On-premise</option>
+            <option value="hybrid">Hybrid</option>
+          </select>
+        </div>
+        <div className="field">
+          <label>Max users</label>
+          <input type="number" min={1} value={maxUsers} onChange={(e) => setMaxUsers(e.target.value)} />
+        </div>
+        <div className="field">
+          <label>Max admin users</label>
+          <input type="number" min={1} value={maxAdminUsers} onChange={(e) => setMaxAdminUsers(e.target.value)} />
+        </div>
+        <div className="field">
+          <label>Max token usage charge</label>
+          <input type="number" min={0} value={maxTokenUsageCharge} onChange={(e) => setMaxTokenUsageCharge(e.target.value)} />
+        </div>
+        <div className="field">
+          <label>Valid from</label>
+          <input type="date" value={validFrom} onChange={(e) => setValidFrom(e.target.value)} required />
+        </div>
+        <div className="field">
+          <label>Valid till</label>
+          <input type="date" value={validTill} onChange={(e) => setValidTill(e.target.value)} required />
+        </div>
       </div>
       <div className="field">
-        <label>Client name</label>
-        <input value={clientName} onChange={(e) => setClientName(e.target.value)} />
-      </div>
-      <div className="field">
-        <label>Company email</label>
-        <input type="email" value={companyEmail} onChange={(e) => setCompanyEmail(e.target.value)} />
-      </div>
-      <div className="field">
-        <label>License type</label>
-        <select value={licenseType} onChange={(e) => setLicenseType(e.target.value)}>
-          <option value="trial">Trial</option>
-          <option value="standard">Standard</option>
-          <option value="enterprise">Enterprise</option>
-        </select>
-      </div>
-      <div className="field">
-        <label>Environment</label>
-        <select value={environment} onChange={(e) => setEnvironment(e.target.value)}>
-          <option value="development">Development</option>
-          <option value="staging">Staging</option>
-          <option value="production">Production</option>
-        </select>
-      </div>
-      <div className="field">
-        <label>Deployment type</label>
-        <select value={deploymentType} onChange={(e) => setDeploymentType(e.target.value)}>
-          <option value="cloud">Cloud</option>
-          <option value="on_premise">On-premise</option>
-          <option value="hybrid">Hybrid</option>
-        </select>
-      </div>
-      <div className="field">
-        <label>Max users</label>
-        <input type="number" value={maxUsers} onChange={(e) => setMaxUsers(e.target.value)} />
+        <label>Remarks</label>
+        <textarea rows={2} value={remarks} onChange={(e) => setRemarks(e.target.value)} />
       </div>
       {error && <div className="error-text">{error}</div>}
       <div className="actions">

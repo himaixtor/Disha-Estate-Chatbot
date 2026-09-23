@@ -8,12 +8,11 @@ const env = require('../../config/env');
  * real client once that API is delivered — nothing else changes.
  */
 class MockInventoryProvider extends InventoryProvider {
-  async findMatches({ category, subCategory, location, sessionId }) {
+  async findMatches({ category, subCategory, location }) {
     const params = new URLSearchParams({
-      category: category || '',
-      subCategory: subCategory || '',
-      location: location || '',
-      ref: sessionId || '',
+      property_type: category || '',
+      bhk: subCategory || '',
+      localities: location || '',
     });
     return {
       matched: true,

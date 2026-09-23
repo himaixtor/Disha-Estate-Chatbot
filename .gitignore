@@ -4,3 +4,7 @@ build/
 .env
 *.log
 .DS_Store
+backend/storage/
+.env.production
+/deploy/
+*.zip

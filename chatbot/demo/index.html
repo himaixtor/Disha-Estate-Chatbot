@@ -17,24 +17,37 @@
     <h1>This is any ordinary client website</h1>
     <p>
       It has no React, no build step, and no knowledge of the chatbot's internals —
-      it only includes the single script tag at the bottom of this file. The chat
+      it only includes the single script tag this page adds below. The chat
       bubble in the bottom-right corner is the entire embed.
     </p>
     <p>
-      Talking to the backend at <code>http://localhost:5002</code> — make sure
-      it's running (<code>npm run dev</code> inside <code>backend/</code>) before
-      opening this page.
+      This page talks to whichever backend is serving it: on your own machine
+      during local development that's <code>http://localhost:5002</code> (run
+      <code>npm run dev</code> inside <code>backend/</code> first); once this
+      file is deployed, it automatically talks to that same server instead —
+      see <code>host.md</code>.
     </p>
   </div>
 
-  <!-- This is the entire integration a client site needs to add. -->
   <script>
-    // Optional — overrides defaults baked into widget.js. Omit entirely to use
-    // Disha's default branding.
+    // This demo page is served two different ways — locally via `serve chatbot`
+    // (where widget.js lives at /src/widget.js relative to that server root)
+    // and in production via the real backend (which exposes it at /widget.js
+    // directly, see backend/src/app.js). It picks both the right API base and
+    // the right script path automatically so the same file works either way —
+    // a real client site only ever needs the one production script tag, with
+    // no config, see chatbot/README.md.
+    var isLocalDev = location.protocol === 'file:'
+      || location.hostname === 'localhost'
+      || location.hostname === '127.0.0.1';
+
     window.DishaChatbotConfig = {
-      apiBase: 'http://localhost:5002/api/v1',
+      apiBase: isLocalDev ? 'http://localhost:5002/api/v1' : (location.origin + '/api/v1'),
     };
+
+    var widgetScript = document.createElement('script');
+    widgetScript.src = isLocalDev ? '../src/widget.js' : '/widget.js';
+    document.body.appendChild(widgetScript);
   </script>
-  <script src="../src/widget.js" data-api-base="http://localhost:5002/api/v1"></script>
 </body>
 </html>

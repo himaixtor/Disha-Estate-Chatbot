@@ -15,7 +15,7 @@
   const scriptTag = document.currentScript;
 
   const DEFAULTS = {
-    apiBase: 'http://localhost:5002/api/v1',
+    apiBase: 'https://chat.dishaestate.com/api/v1',
     botName: 'Property Advisor',
     tagline: 'Instant Support',
     welcomeText: 'Hello! Welcome to our Property Portal.',

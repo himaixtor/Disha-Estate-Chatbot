@@ -13,7 +13,7 @@ function requireAuth(req, res, next) {
 
   try {
     const payload = verifyAccessToken(token);
-    req.user = { uid: payload.sub, roleUid: payload.role, permissions: payload.permissions || {} };
+    req.user = { uid: payload.sub, roleUid: payload.role, roleLevel: payload.roleLevel || null, permissions: payload.permissions || {} };
     next();
   } catch (err) {
     next(new ApiError(401, 'UNAUTHENTICATED', 'Access token is invalid or has expired.'));

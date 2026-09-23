@@ -5,6 +5,7 @@ const { hashPassword, verifyPassword } = require('../utils/password');
 const { signAccessToken, generateRefreshToken, hashRefreshToken } = require('../utils/tokens');
 const { uuid } = require('../utils/uuid');
 const { ApiError } = require('../utils/apiResponse');
+const { buildSessionUser } = require('./sessionPayload');
 
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCK_MINUTES = 15;
@@ -34,14 +35,14 @@ async function login(email, password) {
   const role = await rolesRepo.findByUid(user.role_uid);
   const permissions = rolesRepo.toPermissions(role);
 
-  const accessToken = signAccessToken({ uid: user.uid, role_uid: user.role_uid, permissions });
+  const accessToken = signAccessToken({ uid: user.uid, role_uid: user.role_uid, roleLevel: role?.role_level, permissions });
   const { raw, hash, expiresAt } = generateRefreshToken();
   await refreshTokensRepo.create({ uid: uuid(), userUid: user.uid, tokenHash: hash, expiresAt });
 
   return {
     accessToken,
     refreshToken: raw,
-    user: { uid: user.uid, email: user.email, name: user.name, role: role?.role_name, permissions },
+    user: await buildSessionUser(user, role),
   };
 }
 
@@ -57,7 +58,7 @@ async function refresh(rawToken) {
   await refreshTokensRepo.revoke(record.uid);
   const role = await rolesRepo.findByUid(user.role_uid);
   const permissions = rolesRepo.toPermissions(role);
-  const accessToken = signAccessToken({ uid: user.uid, role_uid: user.role_uid, permissions });
+  const accessToken = signAccessToken({ uid: user.uid, role_uid: user.role_uid, roleLevel: role?.role_level, permissions });
   const { raw, hash: newHash, expiresAt } = generateRefreshToken();
   await refreshTokensRepo.create({ uid: uuid(), userUid: user.uid, tokenHash: newHash, expiresAt });
 
