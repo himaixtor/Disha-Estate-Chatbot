@@ -1,5 +1,10 @@
-require('dotenv').config();
 const path = require('path');
+
+// Always read backend/.env (not whatever folder pm2/the shell was started
+// from), and let it win over variables pm2 may have cached from an earlier
+// start — otherwise edits to .env can silently have no effect after
+// `pm2 restart`.
+require('dotenv').config({ path: path.join(__dirname, '..', '..', '.env'), override: true });
 
 function parseList(value, fallback = []) {
   if (!value) return fallback;
@@ -30,7 +35,11 @@ const env = {
     refreshTtlDays: parseInt(process.env.JWT_REFRESH_TTL_DAYS || '30', 10),
   },
 
-  corsAllowedOrigins: parseList(process.env.CORS_ALLOWED_ORIGINS, ['http://localhost:5173', 'http://localhost:5174']),
+  // Normalised (quotes and trailing "/" stripped, lower-case) because the
+  // browser's Origin header never has either — "http://localhost:3000/"
+  // in .env would otherwise never match.
+  corsAllowedOrigins: parseList(process.env.CORS_ALLOWED_ORIGINS, ['http://localhost:5173', 'http://localhost:5174'])
+    .map((o) => o.replace(/^["']|["']$/g, '').replace(/\/+$/, '').toLowerCase()),
 
   // Module architecture (blueprint § Module architecture) — the single switchboard
   // every future project reconfigures instead of editing business logic.

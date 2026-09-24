@@ -16,7 +16,27 @@ function signAccessToken(user) {
 }
 
 function verifyAccessToken(token) {
-  return jwt.verify(token, env.jwt.accessSecret);
+  const payload = jwt.verify(token, env.jwt.accessSecret);
+  // A step-up (re-auth) token is signed with the same secret but must never
+  // be accepted as a normal access token.
+  if (payload.purpose) throw new Error('Not an access token.');
+  return payload;
+}
+
+// Short-lived "step-up" token issued after the user re-enters their password
+// for a sensitive area (e.g. License Management). Scoped to one purpose and
+// one user; it is only ever held in memory by the Admin Portal page that
+// asked for it, so leaving the page means re-entering the password next time.
+const REAUTH_TTL_SECONDS = 10 * 60;
+
+function signReauthToken(uid, purpose) {
+  return jwt.sign({ sub: uid, purpose }, env.jwt.accessSecret, { expiresIn: REAUTH_TTL_SECONDS });
+}
+
+function verifyReauthToken(token, purpose) {
+  const payload = jwt.verify(token, env.jwt.accessSecret);
+  if (payload.purpose !== purpose) throw new Error('Wrong re-auth purpose.');
+  return payload;
 }
 
 // Refresh tokens are opaque random values, never JWTs — only the sha256 hash is
@@ -32,4 +52,4 @@ function hashRefreshToken(raw) {
   return crypto.createHash('sha256').update(raw).digest('hex');
 }
 
-module.exports = { signAccessToken, verifyAccessToken, generateRefreshToken, hashRefreshToken };
+module.exports = { signAccessToken, verifyAccessToken, generateRefreshToken, hashRefreshToken, signReauthToken, verifyReauthToken, REAUTH_TTL_SECONDS };

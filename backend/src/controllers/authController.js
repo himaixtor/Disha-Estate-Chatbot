@@ -23,10 +23,16 @@ const logout = asyncHandler(async (req, res) => {
   ok(res, {}, 'Signed out.');
 });
 
+const reauthenticate = asyncHandler(async (req, res) => {
+  const { password, purpose } = req.body;
+  const result = await authService.reauthenticate(req.user.uid, password, purpose);
+  ok(res, result, 'Identity verified.');
+});
+
 const me = asyncHandler(async (req, res) => {
   const user = await usersRepo.findByUid(req.user.uid);
   const role = await rolesRepo.findByUid(user.role_uid);
   ok(res, await buildSessionUser(user, role));
 });
 
-module.exports = { login, refresh, logout, me };
+module.exports = { login, refresh, logout, reauthenticate, me };

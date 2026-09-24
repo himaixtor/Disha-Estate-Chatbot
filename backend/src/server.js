@@ -25,6 +25,7 @@ async function start() {
       '========================================================',
       ` Disha backend is RUNNING  —  mode: ${env.nodeEnv}  —  port: ${env.port}`,
       ` modules: ${[...env.enabledModules].join(', ') || 'none'}`,
+      ` CORS allowed : ${env.corsAllowedOrigins.join(', ')}`,
       ` MySQL: ${dbUp ? 'connected' : 'NOT CONNECTED (see warning above)'} (${env.db.host}:${env.db.port}/${env.db.database})`,
       '========================================================',
       ` API health   :  ${base}/api/v1/health`,

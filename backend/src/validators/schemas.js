@@ -7,6 +7,11 @@ const login = z.object({
 
 const refreshToken = z.object({ refreshToken: z.string().min(10) });
 
+const reauthenticate = z.object({
+  password: z.string().min(1),
+  purpose: z.string().min(1),
+});
+
 const createUser = z.object({
   email: z.string().email(),
   password: z.string().min(8, 'Password must be at least 8 characters.'),
@@ -92,7 +97,7 @@ const roleUpdate = roleCreate.partial();
 const setUserRole = z.object({ roleUid: z.string().uuid() });
 
 module.exports = {
-  login, refreshToken, createUser,
+  login, refreshToken, reauthenticate, createUser,
   categoryCreate, categoryUpdate,
   subcategoryCreate, subcategoryUpdate,
   serviceSectorCreate, serviceSectorUpdate,

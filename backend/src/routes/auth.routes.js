@@ -9,5 +9,6 @@ router.post('/login', authLimiter, validateBody(schemas.login), ctrl.login);
 router.post('/refresh', authLimiter, validateBody(schemas.refreshToken), ctrl.refresh);
 router.post('/logout', validateBody(schemas.refreshToken), ctrl.logout);
 router.get('/me', requireAuth, ctrl.me);
+router.post('/reauthenticate', authLimiter, requireAuth, validateBody(schemas.reauthenticate), ctrl.reauthenticate);
 
 module.exports = router;

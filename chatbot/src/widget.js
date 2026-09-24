@@ -22,9 +22,9 @@
     // Disha brand palette, sampled from the marketing site's home page
     // (warm coral accent on a cream ground, deep maroon header/footer).
     // Branding is config, not code — see the module note above to reskin.
-    primaryColor: '#3A0D08',
+    primaryColor: '#000000',
     primaryDark: '#2A0905',
-    accentColor: '#E2402B',
+    accentColor: '#EB161F',
     accentHover: '#C93420',
     position: 'bottom-right',
   };
@@ -56,13 +56,16 @@
     }
     .window.hidden { opacity: 0; pointer-events: none; transform: translateY(16px); }
     .header { background: ${config.primaryColor}; color: #fff; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; }
+    .header-brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .header-avatar { width: 36px; height: 36px; flex: none; border-radius: 50%; background: rgba(255,255,255,.12); color: #fff; display: grid; place-items: center; }
+    .header-avatar svg { width: 24px; height: 24px; display: block; }
     .header .title { font-size: 1rem; font-weight: 600; }
     .header .tag { font-size: .72rem; color: rgba(255,255,255,.72); margin-top: 2px; }
     .header-actions { display: flex; align-items: center; gap: 10px; }
     .header-actions button { background: transparent; border: none; color: rgba(255,255,255,.72); cursor: pointer; font-size: .72rem; font-weight: 600; }
     .header-actions button:hover { color: #fff; }
     .close-btn { background: transparent; border: none; color: rgba(255,255,255,.72); cursor: pointer; font-size: 1.25rem; line-height: 1; }
-    .body { flex: 1; padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; background: #FBF3EC; }
+    .body { flex: 1; padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; background: #fff; }
     .row { display: flex; width: 100%; }
     .row.bot { justify-content: flex-start; }
     .row.user { justify-content: flex-end; }
@@ -73,6 +76,7 @@
     .row.user .bubble a { color: #fff; }
     .options { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
     .chip { background: #fff; border: 1px solid #E8D9C9; color: #241C18; padding: 7px 12px; border-radius: 20px; font-size: .8rem; font-weight: 500; cursor: pointer; }
+    .chip.back { color: #6B5A50; border-style: dashed; }
     .chip:hover { border-color: ${config.accentColor}; color: ${config.accentColor}; background: #FDECEA; }
     .footer { padding: 12px; background: #fff; border-top: 1px solid #F0E4D8; display: flex; gap: 8px; }
     .footer.hidden { display: none; }
@@ -95,12 +99,14 @@
     </button>
     <div class="window hidden" id="window">
       <header class="header">
-        <div>
-          <div class="title">${config.botName}</div>
-          <div class="tag">${config.tagline}</div>
+        <div class="header-brand">
+          <div class="header-avatar"><svg viewBox="0 0 128 128" fill="currentColor" aria-hidden="true"><path d="M71,75.82045c0,5.03314,3.07471,8.97552,7,8.97552s7-3.94237,7-8.97552-3.07471-8.97552-7-8.97552S71,70.7873,71,75.82045Zm10,0c0,2.93827-1.58105,4.9864-3,4.9864s-3-2.04812-3-4.9864,1.58105-4.9864,3-4.9864S81,72.88217,81,75.82045Z"/><path d="M43,75.82045c0,5.03314,3.07471,8.97552,7,8.97552s7-3.94237,7-8.97552-3.07471-8.97552-7-8.97552S43,70.7873,43,75.82045Zm10,0c0,2.93827-1.58105,4.9864-3,4.9864s-3-2.04812-3-4.9864,1.58105-4.9864,3-4.9864S53,72.88217,53,75.82045Z"/><path d="M81.93384,111.03067A14.05354,14.05354,0,0,1,75.67218,118a40.72732,40.72732,0,0,0,22.76544-17.33333,86.23218,86.23218,0,0,1-9.97247,5.67537A36.67357,36.67357,0,0,1,81.93384,111.03067Z"/><path d="M46.04767,111.02063A37.52231,37.52231,0,0,1,28.183,87.38412a13.05723,13.05723,0,0,1-3.13745,3.58641,41.0774,41.0774,0,0,0,27.24988,27.02028A14.05467,14.05467,0,0,1,46.04767,111.02063Z"/><path d="M26,66.84493a8.99021,8.99021,0,0,0-6.95642-8.7332C19.95148,33.62647,39.76343,13.98912,64,13.98912c22.89893,0,41.84424,17.53146,44.63293,40.11694a12.19675,12.19675,0,0,1,4.01636-.1095C109.78516,29.258,89.06689,10,64,10,37.56628,10,15.96753,31.41406,15.04425,58.08915a9.00861,9.00861,0,0,0-6.82269,6.80054,8.96725,8.96725,0,0,0,0,17.87239A8.9994,8.9994,0,0,0,26,80.80684ZM8,78.71149a4.98363,4.98363,0,0,1,0-9.7712Z"/><path d="M100.82184,88.84814a76.53546,76.53546,0,0,1-22.53143,13.22327A10.009,10.009,0,0,0,69,95.766H59a9.97283,9.97283,0,1,0,0,19.94559H69a9.99216,9.99216,0,0,0,9.9834-9.6455,80.77363,80.77363,0,0,0,24.78552-14.49239A13.08529,13.08529,0,0,1,100.82184,88.84814Z"/><path d="M119.77844,64.88969A8.9994,8.9994,0,0,0,102,66.84493V80.80684a8.9994,8.9994,0,0,0,17.77844,1.95524,8.96725,8.96725,0,0,0,0-17.87239ZM120,78.71149v-9.7712a4.98363,4.98363,0,0,1,0,9.7712Z"/><path d="M98,66.84473a12.981,12.981,0,0,1,6.82886-11.41437A43.86941,43.86941,0,0,0,98.772,42.11548a22.0195,22.0195,0,0,0-4.3916-4.87146,21.19639,21.19639,0,0,0-3.39844-2.25555,14.68543,14.68543,0,0,0-1.41309-.63306,5.31756,5.31756,0,0,1-1.55908-.81226c-7.0332-6.77838-15.1626-9.72931-26.2915-9.57544-14.519.20258-25.36328,5.91553-33.15283,17.46509a38.254,38.254,0,0,0-4.83862,10.61542c-.20514,1.12177-.37549,2.25684-.49243,3.40979A12.90467,12.90467,0,0,1,30,66.84473V77.24384c1.28967-2.63049,2.72412-5.61487,3.54688-7.51715,2.2915-5.3,7.12842-8.93848,12.32275-9.26862a41.23306,41.23306,0,0,1,7.62988.45575,43.42422,43.42422,0,0,0,8.90234.44214,43.85363,43.85363,0,0,0,16.31836-4.55688c1.769,1.28363,6.18115,4.52966,8.938,6.9566A54.87121,54.87121,0,0,1,97.0127,74.83679c.24408.41724.59741,1.11792.9873,1.92847Z"/></svg></div>
+          <div>
+            <div class="title">${config.botName}</div>
+            <div class="tag">${config.tagline}</div>
+          </div>
         </div>
         <div class="header-actions">
-          <button id="backBtn" title="Back">‹ Back</button>
           <button id="resetBtn" title="Start over">Start over</button>
           <button class="close-btn" id="closeBtn">&times;</button>
         </div>
@@ -121,7 +127,6 @@
         toggle: this.shadow.getElementById('toggle'),
         window: this.shadow.getElementById('window'),
         close: this.shadow.getElementById('closeBtn'),
-        back: this.shadow.getElementById('backBtn'),
         reset: this.shadow.getElementById('resetBtn'),
         body: this.shadow.getElementById('body'),
         form: this.shadow.getElementById('form'),
@@ -136,7 +141,6 @@
     _bind() {
       this.el.toggle.addEventListener('click', () => this._toggleWindow());
       this.el.close.addEventListener('click', () => this.el.window.classList.add('hidden'));
-      this.el.back.addEventListener('click', () => this._back());
       this.el.reset.addEventListener('click', () => this._reset());
       this.el.form.addEventListener('submit', (e) => this._onSubmit(e));
     }
@@ -189,10 +193,25 @@
       this.el.body.scrollTop = this.el.body.scrollHeight;
     }
 
-    _addOptions(options, onSelect) {
+    // { withBack: true } appends a "Back" chip that steps the workflow back one
+    // step (server-side BACK_MAP) — shown from sub-category selection onwards.
+    _addOptions(options, onSelect, { withBack = false } = {}) {
       const container = document.createElement('div');
       container.className = 'options';
-      options.forEach((opt) => {
+      if (withBack) {
+        const back = document.createElement('button');
+        back.type = 'button';
+        back.className = 'chip back';
+        back.textContent = '\u2039 Back';
+        back.addEventListener('click', () => {
+          container.remove();
+          this._addMessage('Back', 'user');
+          this._back();
+        });
+        // appended after the real options below
+        container._backChip = back;
+      }
+      (options || []).forEach((opt) => {
         const chip = document.createElement('button');
         chip.type = 'button';
         chip.className = 'chip';
@@ -204,6 +223,7 @@
         });
         container.appendChild(chip);
       });
+      if (container._backChip) container.appendChild(container._backChip);
       this.el.body.appendChild(container);
       this.el.body.scrollTop = this.el.body.scrollHeight;
     }
@@ -282,13 +302,14 @@
         case 'PROPERTY_CATEGORY':
         case 'PROPERTY_SUBCATEGORY':
           this._setInputMode({ hidden: true });
-          this._addOptions(data.reply.options, (opt) => this._selectTaxonomy(data.session.state, opt));
+          this._addOptions(data.reply.options, (opt) => this._selectTaxonomy(data.session.state, opt),
+            { withBack: data.session.state === 'PROPERTY_SUBCATEGORY' });
           break;
         case 'LOCATION':
           // Chips only until the user picks "Other" — _selectLocation reveals
           // the text input at that point.
           this._setInputMode({ hidden: true });
-          this._addOptions(data.reply.options, (opt) => this._selectLocation(opt));
+          this._addOptions(data.reply.options, (opt) => this._selectLocation(opt), { withBack: true });
           break;
         case 'LOCATION_UNSERVICEABLE':
           this._setInputMode({ hidden: true });

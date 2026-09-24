@@ -2,7 +2,7 @@ const usersRepo = require('../db/repositories/usersRepo');
 const rolesRepo = require('../db/repositories/rolesRepo');
 const refreshTokensRepo = require('../db/repositories/refreshTokensRepo');
 const { hashPassword, verifyPassword } = require('../utils/password');
-const { signAccessToken, generateRefreshToken, hashRefreshToken } = require('../utils/tokens');
+const { signAccessToken, generateRefreshToken, hashRefreshToken, signReauthToken, REAUTH_TTL_SECONDS } = require('../utils/tokens');
 const { uuid } = require('../utils/uuid');
 const { ApiError } = require('../utils/apiResponse');
 const { buildSessionUser } = require('./sessionPayload');
@@ -71,6 +71,37 @@ async function logout(rawToken) {
   if (record) await refreshTokensRepo.revoke(record.uid);
 }
 
+// Step-up verification for sensitive pages: the already signed-in user
+// re-enters their password and gets a short-lived, purpose-scoped token.
+// Wrong passwords count toward the same lockout as normal sign-in.
+const REAUTH_PURPOSES = ['license_management'];
+
+async function reauthenticate(uid, password, purpose) {
+  if (!REAUTH_PURPOSES.includes(purpose)) {
+    throw new ApiError(400, 'INVALID_PURPOSE', 'Unknown verification purpose.');
+  }
+  const user = await usersRepo.findByUid(uid);
+  if (!user || !user.is_active) throw new ApiError(401, 'UNAUTHENTICATED', 'Please sign in again.');
+
+  if (user.locked_until && new Date(user.locked_until) > new Date()) {
+    throw new ApiError(423, 'ACCOUNT_LOCKED', 'This account is temporarily locked due to failed sign-in attempts.');
+  }
+
+  const isMatch = await verifyPassword(password, user.password_hash);
+  if (!isMatch) {
+    const attempts = user.failed_login_attempts + 1;
+    const lockUntil = attempts >= MAX_FAILED_ATTEMPTS
+      ? new Date(Date.now() + LOCK_MINUTES * 60 * 1000)
+      : null;
+    await usersRepo.recordFailedLogin(user.uid, { lockUntil });
+    // 400, not 401 — a 401 would make the Admin Portal treat it as an expired session and log out.
+    throw new ApiError(400, 'INVALID_PASSWORD', 'Incorrect password. Please try again.');
+  }
+
+  await usersRepo.resetFailedLogins(user.uid);
+  return { reauthToken: signReauthToken(user.uid, purpose), expiresIn: REAUTH_TTL_SECONDS };
+}
+
 async function createUser({ email, password, name, roleUid, contactNumber }) {
   const existing = await usersRepo.findByEmail(email);
   if (existing) throw new ApiError(409, 'EMAIL_IN_USE', 'A user with this email already exists.');
@@ -80,4 +111,4 @@ async function createUser({ email, password, name, roleUid, contactNumber }) {
   return uid;
 }
 
-module.exports = { login, refresh, logout, createUser };
+module.exports = { login, refresh, logout, reauthenticate, createUser };

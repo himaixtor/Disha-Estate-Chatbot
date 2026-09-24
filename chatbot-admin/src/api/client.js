@@ -23,8 +23,8 @@ function setAuthExpiredHandler(fn) {
   onAuthExpired = fn;
 }
 
-async function rawRequest(path, { method = 'GET', body, auth = true } = {}) {
-  const headers = { 'Content-Type': 'application/json' };
+async function rawRequest(path, { method = 'GET', body, auth = true, headers: extraHeaders } = {}) {
+  const headers = { 'Content-Type': 'application/json', ...(extraHeaders || {}) };
   if (auth && accessToken) headers.Authorization = `Bearer ${accessToken}`;
 
   const res = await fetch(`${API_BASE}${path}`, {
@@ -73,8 +73,8 @@ async function tryRefresh() {
 }
 
 export const api = {
-  get: (path) => request(path),
-  post: (path, body) => request(path, { method: 'POST', body }),
+  get: (path, options = {}) => request(path, options),
+  post: (path, body, options = {}) => request(path, { ...options, method: 'POST', body }),
   patch: (path, body) => request(path, { method: 'PATCH', body }),
   delete: (path) => request(path, { method: 'DELETE' }),
   setTokens,

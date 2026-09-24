@@ -16,9 +16,12 @@ app.use(morgan(env.nodeEnv === 'production' ? 'combined' : 'dev'));
 app.use(cors({
   origin(origin, callback) {
     // Same-origin/non-browser requests (no Origin header) are always allowed.
-    if (!origin || env.corsAllowedOrigins.includes(origin) || env.corsAllowedOrigins.includes('*')) {
+    if (!origin || env.corsAllowedOrigins.includes(origin.toLowerCase()) || env.corsAllowedOrigins.includes('*')) {
       return callback(null, true);
     }
+    // Logged so a site that can't reach the API shows up in `pm2 logs` —
+    // the browser itself only reports a generic CORS error.
+    console.warn(`[CORS] Rejected origin "${origin}" — add it to CORS_ALLOWED_ORIGINS in backend/.env to allow it.`);
     return callback(new ApiError(403, 'CORS_REJECTED', 'This origin is not allowed to call this API.'));
   },
   credentials: true,
