@@ -47,8 +47,10 @@ const serviceSectorUpdate = z.object({
 });
 
 const chatName = z.object({ name: z.string().min(1).max(120) });
-const chatMobile = z.object({ mobileNumber: z.string().min(6).max(20) });
-const chatOtp = z.object({ code: z.string().min(4).max(8) });
+const chatMobile = z.object({ mobileNumber: z.string().min(10).max(20) });
+// Exact length + digits-only is enforced in otpService.verifyOtp (it owns
+// OTP_LENGTH) so a bad code gets a friendly message instead of a 422.
+const chatOtp = z.object({ code: z.string().min(1).max(10) });
 const chatCategory = z.object({ categoryId: z.number().int() });
 const chatSubcategory = z.object({ subcategoryId: z.number().int() });
 const chatLocation = z.object({

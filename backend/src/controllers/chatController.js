@@ -41,6 +41,16 @@ const verifyOtp = asyncHandler(async (req, res) => {
   ok(res, { session: serializeSession(session), reply });
 });
 
+const resendOtp = asyncHandler(async (req, res) => {
+  const { session, reply } = await workflow.resendOtp(req.params.id);
+  ok(res, { session: serializeSession(session), reply });
+});
+
+const changeMobile = asyncHandler(async (req, res) => {
+  const { session, reply } = await workflow.changeMobile(req.params.id);
+  ok(res, { session: serializeSession(session), reply });
+});
+
 const selectCategory = asyncHandler(async (req, res) => {
   const { session, reply } = await workflow.selectCategory(req.params.id, req.body.categoryId);
   ok(res, { session: serializeSession(session), reply });
@@ -64,12 +74,12 @@ const goBack = asyncHandler(async (req, res) => {
   ok(res, { session: serializeSession(session), reply });
 });
 
-const startOver = asyncHandler(async (req, res) => {
-  const { session, reply } = await workflow.startOver(req.params.id);
+const mainMenu = asyncHandler(async (req, res) => {
+  const { session, reply } = await workflow.mainMenu(req.params.id);
   ok(res, { session: serializeSession(session), reply });
 });
 
 module.exports = {
-  createSession, getSession, submitName, submitMobile, verifyOtp,
-  selectCategory, selectSubcategory, submitLocation, goBack, startOver,
+  createSession, getSession, submitName, submitMobile, verifyOtp, resendOtp, changeMobile,
+  selectCategory, selectSubcategory, submitLocation, goBack, mainMenu,
 };

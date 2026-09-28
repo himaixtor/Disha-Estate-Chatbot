@@ -2,13 +2,11 @@ import { useEffect, useMemo, useState, useCallback } from 'react';
 import { api } from '../api/client';
 import ChatHistoryModal from '../components/ChatHistoryModal';
 
-const STATUS_OPTIONS = ['new', 'verified', 'matched', 'converted', 'dropped'];
 const LIMIT = 50;
 
 export default function LeadsPage() {
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
-  const [status, setStatus] = useState('');
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [dateFrom, setDateFrom] = useState('');
@@ -25,14 +23,13 @@ export default function LeadsPage() {
 
   const load = useCallback(() => {
     const q = new URLSearchParams({ limit: LIMIT, offset });
-    if (status) q.set('status', status);
     if (search) q.set('search', search);
     if (dateFrom) q.set('dateFrom', dateFrom);
     if (dateTo) q.set('dateTo', dateTo);
     api.get(`/leads?${q.toString()}`)
       .then((d) => { setItems(d.items); setTotal(d.total); })
       .catch((e) => setError(e.message));
-  }, [status, search, dateFrom, dateTo, offset]);
+  }, [search, dateFrom, dateTo, offset]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -41,13 +38,7 @@ export default function LeadsPage() {
     load();
   }
 
-  async function changeStatus(sessionId, leadStatus) {
-    await api.patch(`/leads/${sessionId}`, { leadStatus });
-    load();
-  }
-
   function clearFilters() {
-    setStatus('');
     setSearchInput('');
     setSearch('');
     setDateFrom('');
@@ -55,7 +46,7 @@ export default function LeadsPage() {
     setOffset(0);
   }
 
-  const hasFilters = status || search || dateFrom || dateTo;
+  const hasFilters = search || dateFrom || dateTo;
   const page = Math.floor(offset / LIMIT) + 1;
   const pageCount = Math.max(1, Math.ceil(total / LIMIT));
   const rangeLabel = useMemo(() => {
@@ -82,12 +73,6 @@ export default function LeadsPage() {
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
             />
-          </div>
-          <div className="field">
-            <select value={status} onChange={(e) => { setStatus(e.target.value); setOffset(0); }}>
-              <option value="">All statuses</option>
-              {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
           </div>
           <div className="field date-field">
             <input
@@ -117,7 +102,7 @@ export default function LeadsPage() {
             <table>
               <thead>
                 <tr>
-                  <th></th><th>Name</th><th>Mobile</th><th>State</th><th>Status</th><th>Created</th><th></th><th></th>
+                  <th></th><th>Name</th><th>Mobile</th><th>Created</th><th></th><th></th>
                 </tr>
               </thead>
               <tbody>
@@ -126,12 +111,6 @@ export default function LeadsPage() {
                     <td>{row.is_pinned ? '📌' : ''}</td>
                     <td>{row.name || '(anonymous)'}</td>
                     <td>{row.mobile_number || '—'}</td>
-                    <td>{row.state}</td>
-                    <td>
-                      <select value={row.lead_status} onChange={(e) => changeStatus(row.session_id, e.target.value)}>
-                        {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-                      </select>
-                    </td>
                     <td>{row.created_at ? new Date(row.created_at).toLocaleString() : '—'}</td>
                     <td>
                       <button

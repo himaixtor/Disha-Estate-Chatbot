@@ -11,7 +11,7 @@ test('rejects numbers-only input', () => {
 });
 
 test('rejects a URL', () => {
-  assert.equal(isValidName(window.location.hostname+'/property'), false);
+  assert.equal(isValidName('example.com/property'), false);
 });
 
 test('rejects a question', () => {
@@ -24,4 +24,9 @@ test('rejects an obvious prompt-injection attempt', () => {
 
 test('rejects an overly long run-on sentence', () => {
   assert.equal(isValidName('this is definitely not a real persons actual name at all'), false);
+});
+
+test('enforces the 50-character limit', () => {
+  assert.equal(isValidName('A'.repeat(50)), true);
+  assert.equal(isValidName('A'.repeat(51)), false);
 });

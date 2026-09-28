@@ -25,4 +25,20 @@ async function markVerified(id) {
   await pool.query('UPDATE otp_verifications SET verified_at = NOW() WHERE id = :id', { id });
 }
 
-module.exports = { create, findLatestForSession, incrementAttempt, markVerified };
+// Seconds since the latest code for this session was issued, and how many
+// codes the session has been sent in total — computed in SQL so the DB clock
+// is used for both sides of the comparison (no app/DB timezone drift).
+async function sendStats(sessionId) {
+  const [rows] = await pool.query(
+    `SELECT COUNT(*) AS sent_count,
+            TIMESTAMPDIFF(SECOND, MAX(created_at), NOW()) AS seconds_since_last
+       FROM otp_verifications WHERE session_id = :sessionId`,
+    { sessionId }
+  );
+  return {
+    sentCount: Number(rows[0]?.sent_count || 0),
+    secondsSinceLast: rows[0]?.seconds_since_last == null ? null : Number(rows[0].seconds_since_last),
+  };
+}
+
+module.exports = { create, findLatestForSession, incrementAttempt, markVerified, sendStats };

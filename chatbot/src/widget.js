@@ -13,6 +13,7 @@
   'use strict';
 
   const scriptTag = document.currentScript;
+  const NAME_MAX_LENGTH = 50; // must match backend nameValidationService
 
   const DEFAULTS = {
     apiBase: 'https://chat.dishaestate.com/api/v1',
@@ -62,9 +63,8 @@
     .header .title { font-size: 1rem; font-weight: 600; }
     .header .tag { font-size: .72rem; color: rgba(255,255,255,.72); margin-top: 2px; }
     .header-actions { display: flex; align-items: center; gap: 10px; }
-    .header-actions button { background: transparent; border: none; color: rgba(255,255,255,.72); cursor: pointer; font-size: .72rem; font-weight: 600; }
-    .header-actions button:hover { color: #fff; }
     .close-btn { background: transparent; border: none; color: rgba(255,255,255,.72); cursor: pointer; font-size: 1.25rem; line-height: 1; }
+    .close-btn:hover { color: #fff; }
     .body { flex: 1; padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; background: #fff; }
     .row { display: flex; width: 100%; }
     .row.bot { justify-content: flex-start; }
@@ -76,6 +76,8 @@
     .row.user .bubble a { color: #fff; }
     .options { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
     .chip { background: #fff; border: 1px solid #E8D9C9; color: #241C18; padding: 7px 12px; border-radius: 20px; font-size: .8rem; font-weight: 500; cursor: pointer; }
+    .otp-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .otp-actions .chip:disabled { opacity: .55; cursor: not-allowed; border-color: #E8D9C9; color: #8A7B72; background: #fff; }
     .chip.back { color: #6B5A50; border-style: dashed; }
     .chip:hover { border-color: ${config.accentColor}; color: ${config.accentColor}; background: #FDECEA; }
     .footer { padding: 12px; background: #fff; border-top: 1px solid #F0E4D8; display: flex; gap: 8px; }
@@ -107,7 +109,6 @@
           </div>
         </div>
         <div class="header-actions">
-          <button id="resetBtn" title="Start over">Start over</button>
           <button class="close-btn" id="closeBtn">&times;</button>
         </div>
       </header>
@@ -127,7 +128,6 @@
         toggle: this.shadow.getElementById('toggle'),
         window: this.shadow.getElementById('window'),
         close: this.shadow.getElementById('closeBtn'),
-        reset: this.shadow.getElementById('resetBtn'),
         body: this.shadow.getElementById('body'),
         form: this.shadow.getElementById('form'),
         input: this.shadow.getElementById('input'),
@@ -141,8 +141,112 @@
     _bind() {
       this.el.toggle.addEventListener('click', () => this._toggleWindow());
       this.el.close.addEventListener('click', () => this.el.window.classList.add('hidden'));
-      this.el.reset.addEventListener('click', () => this._reset());
       this.el.form.addEventListener('submit', (e) => this._onSubmit(e));
+      this.el.input.addEventListener('input', () => this._filterInput());
+    }
+
+    // Digits-only fields (mobile number, OTP): strip anything that isn't a
+    // digit as the user types or pastes, and cap the length. A pasted
+    // "+91 98765 43210" / "09876543210" is reduced to the 10-digit number.
+    _filterInput() {
+      const f = this._inputFilter;
+      if (!f) return;
+      let digits = this.el.input.value.replace(/\D/g, '');
+      if (f === 'name') {
+        // Letters, spaces and . ' - only; no leading spaces; max NAME_MAX_LENGTH.
+        const cleaned = this.el.input.value.replace(/[^a-zA-Z\s.'-]/g, '').replace(/^\s+/, '').replace(/\s{2,}/g, ' ').slice(0, NAME_MAX_LENGTH);
+        if (cleaned !== this.el.input.value) this.el.input.value = cleaned;
+        return;
+      }
+      if (f === 'mobile') {
+        if (digits.length === 12 && digits.startsWith('91')) digits = digits.slice(2);
+        else if (digits.length === 11 && digits.startsWith('0')) digits = digits.slice(1);
+      }
+      digits = digits.slice(0, this.el.input.maxLength > 0 ? this.el.input.maxLength : undefined);
+      if (digits !== this.el.input.value) this.el.input.value = digits;
+    }
+
+    // "Resend OTP" (with a countdown) + "Change number" under the OTP prompt.
+    // resendAfter: seconds until resend is allowed; null = resend unavailable
+    // (per-session limit reached), only "Change number" is offered.
+    _renderOtpActions(resendAfter) {
+      this._clearOtpActions();
+      const row = document.createElement('div');
+      row.className = 'otp-actions';
+
+      if (resendAfter !== null) {
+        const resend = document.createElement('button');
+        resend.type = 'button';
+        resend.className = 'chip';
+        let left = Math.max(0, Number(resendAfter) || 0);
+        const paint = () => {
+          resend.disabled = left > 0;
+          resend.textContent = left > 0 ? `Resend OTP in ${left}s` : 'Resend OTP';
+        };
+        paint();
+        if (left > 0) {
+          this._otpTimer = setInterval(() => {
+            left -= 1;
+            paint();
+            if (left <= 0) { clearInterval(this._otpTimer); this._otpTimer = null; }
+          }, 1000);
+        }
+        resend.addEventListener('click', () => this._resendOtp());
+        row.appendChild(resend);
+      }
+
+      const change = document.createElement('button');
+      change.type = 'button';
+      change.className = 'chip';
+      change.textContent = 'Change number';
+      change.addEventListener('click', () => this._changeMobile());
+      row.appendChild(change);
+
+      this._otpActionsEl = row;
+      this.el.body.appendChild(row);
+      this.el.body.scrollTop = this.el.body.scrollHeight;
+    }
+
+    _clearOtpActions() {
+      if (this._otpTimer) { clearInterval(this._otpTimer); this._otpTimer = null; }
+      if (this._otpActionsEl) { this._otpActionsEl.remove(); this._otpActionsEl = null; }
+    }
+
+    // Keeps the OTP buttons as the last thing in the chat after new messages.
+    _keepOtpActionsLast() {
+      if (this._otpActionsEl) {
+        this.el.body.appendChild(this._otpActionsEl);
+        this.el.body.scrollTop = this.el.body.scrollHeight;
+      }
+    }
+
+    async _resendOtp() {
+      if (!this.sessionId || this._busy) return;
+      this._busy = true;
+      this._clearOtpActions();
+      this._addMessage('Resend OTP', 'user');
+      try {
+        await this._handleReply(await this._api(`/chat/session/${this.sessionId}/otp/resend`, { method: 'POST' }));
+      } catch (err) {
+        this._addMessage(err.message, 'bot');
+        this._renderOtpActions(0);
+      } finally {
+        this._busy = false;
+      }
+    }
+
+    async _changeMobile() {
+      if (!this.sessionId || this._busy) return;
+      this._busy = true;
+      this._clearOtpActions();
+      this._addMessage('Change number', 'user');
+      try {
+        await this._handleReply(await this._api(`/chat/session/${this.sessionId}/mobile/change`, { method: 'POST' }));
+      } catch (err) {
+        this._addMessage(err.message, 'bot');
+      } finally {
+        this._busy = false;
+      }
     }
 
     async _toggleWindow() {
@@ -238,9 +342,17 @@
       row.remove();
     }
 
-    _setInputMode({ placeholder = 'Type here...', type = 'text', disabled = false, hidden = false } = {}) {
+    _setInputMode({
+      placeholder = 'Type here...', type = 'text', disabled = false, hidden = false,
+      filter = null, maxLength = null, inputMode = 'text', autocomplete = 'off',
+    } = {}) {
+      this._inputFilter = filter; // null | 'mobile' | 'digits'
+      this.el.input.value = '';
       this.el.input.placeholder = placeholder;
       this.el.input.type = type;
+      this.el.input.inputMode = inputMode;
+      this.el.input.autocomplete = autocomplete;
+      if (maxLength) this.el.input.maxLength = maxLength; else this.el.input.removeAttribute('maxlength');
       this.el.input.disabled = disabled;
       this.el.send.disabled = disabled;
       this.el.form.classList.toggle('hidden', hidden);
@@ -255,7 +367,7 @@
       await this._typingDelay(300);
       this._addMessage(reply.text, 'bot');
       // startSession() always lands on COLLECT_NAME (free text, no chips).
-      this._setInputMode({ placeholder: 'Your full name' });
+      this._setInputMode({ placeholder: 'Your full name', filter: 'name', maxLength: NAME_MAX_LENGTH, autocomplete: 'name' });
     }
 
     async _onSubmit(e) {
@@ -267,13 +379,30 @@
       const state = this._lastKnownState;
       try {
         if (state === 'COLLECT_NAME' || !state) {
+          if (value.length < 2 || value.length > NAME_MAX_LENGTH) {
+            this.el.input.value = value;
+            this._addMessage(`Please enter your name (2 to ${NAME_MAX_LENGTH} characters).`, 'bot');
+            return;
+          }
           this._addMessage(value, 'user');
           await this._handleReply(await this._api(`/chat/session/${this.sessionId}/name`, { method: 'POST', body: { name: value } }));
         } else if (state === 'COLLECT_MOBILE') {
+          if (!/^[6-9]\d{9}$/.test(value)) {
+            this.el.input.value = value;
+            this._addMessage('Please enter a valid 10-digit Indian mobile number starting with 6, 7, 8 or 9.', 'bot');
+            return;
+          }
           this._addMessage(value, 'user');
           await this._handleReply(await this._api(`/chat/session/${this.sessionId}/mobile`, { method: 'POST', body: { mobileNumber: value } }));
         } else if (state === 'VERIFY_OTP') {
-          this._addMessage('••••', 'user');
+          const len = this._otpLength || 4;
+          if (!new RegExp(`^\\d{${len}}$`).test(value)) {
+            this.el.input.value = value;
+            this._addMessage(`Please enter the ${len}-digit code (numbers only).`, 'bot');
+            this._keepOtpActionsLast();
+            return;
+          }
+          this._addMessage('\u2022'.repeat(len), 'user');
           await this._handleReply(await this._api(`/chat/session/${this.sessionId}/otp/verify`, { method: 'POST', body: { code: value } }));
         } else if (state === 'LOCATION' || state === 'LOCATION_UNSERVICEABLE') {
           await this._typingDelay(300);
@@ -281,24 +410,32 @@
         }
       } catch (err) {
         this._addMessage(err.message || 'Something went wrong. Please try again.', 'bot');
+        this._keepOtpActionsLast();
       }
     }
 
     async _handleReply(data) {
+      this._clearOtpActions();
+      // Option chips from an earlier step must not stay clickable once the
+      // conversation has moved on (e.g. after Back to main menu).
+      this.el.body.querySelectorAll('.options').forEach((el) => el.remove());
       this._lastKnownState = data.session.state;
       await this._typingDelay(350);
       this._addMessage(data.reply.text, 'bot');
 
       switch (data.session.state) {
         case 'COLLECT_NAME':
-          this._setInputMode({ placeholder: 'Your full name' });
+          this._setInputMode({ placeholder: 'Your full name', filter: 'name', maxLength: NAME_MAX_LENGTH, autocomplete: 'name' });
           break;
         case 'COLLECT_MOBILE':
-          this._setInputMode({ placeholder: 'e.g., 9876543210', type: 'tel' });
+          this._setInputMode({ placeholder: '10-digit mobile number', type: 'tel', filter: 'mobile', maxLength: 10, inputMode: 'numeric', autocomplete: 'tel-national' });
           break;
-        case 'VERIFY_OTP':
-          this._setInputMode({ placeholder: 'Enter 4-digit OTP', type: 'text' });
+        case 'VERIFY_OTP': {
+          this._otpLength = data.reply.otpLength || this._otpLength || 4;
+          this._setInputMode({ placeholder: `Enter ${this._otpLength}-digit OTP`, type: 'text', filter: 'digits', maxLength: this._otpLength, inputMode: 'numeric', autocomplete: 'one-time-code' });
+          this._renderOtpActions(data.reply.resendAfterSeconds === undefined ? 30 : data.reply.resendAfterSeconds);
           break;
+        }
         case 'PROPERTY_CATEGORY':
         case 'PROPERTY_SUBCATEGORY':
           this._setInputMode({ hidden: true });
@@ -317,7 +454,7 @@
           break;
         case 'NO_MATCH':
           this._setInputMode({ hidden: true });
-          this._addOptions(data.reply.options, () => this._reset());
+          this._addOptions(data.reply.options, () => this._mainMenu());
           break;
         case 'SHOW_RESULTS':
           this._setInputMode({ hidden: true });
@@ -364,9 +501,17 @@
       if (!resultUrl) return;
       if (opt.id === 'open') {
         window.open(resultUrl, '_blank', 'noopener');
+        this._addMessage('Your results are open in a new tab. What would you like to do next?', 'bot');
       } else {
-        this._addLinkMessage(resultUrl, 'Open your results ↗');
+        this._addLinkMessage(resultUrl, 'Open your results \u2197');
+        this._addMessage('What would you like to do next?', 'bot');
       }
+      // Navigation after the results: previous menu = location step,
+      // main menu = category selection (verified details are kept).
+      this._addOptions([
+        { id: 'previous', label: '\u2039 Back to previous menu' },
+        { id: 'main', label: 'Back to main menu' },
+      ], (nav) => (nav.id === 'previous' ? this._back() : this._mainMenu()));
     }
 
     async _back() {
@@ -378,10 +523,12 @@
       }
     }
 
-    async _reset() {
+    // "Back to main menu": keeps the verified name/mobile, returns to
+    // category selection with preferences cleared.
+    async _mainMenu() {
       if (!this.sessionId) return;
       try {
-        await this._handleReply(await this._api(`/chat/session/${this.sessionId}/reset`, { method: 'POST' }));
+        await this._handleReply(await this._api(`/chat/session/${this.sessionId}/main-menu`, { method: 'POST' }));
       } catch (err) {
         this._addMessage(err.message, 'bot');
       }
