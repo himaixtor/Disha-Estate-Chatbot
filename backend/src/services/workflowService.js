@@ -7,6 +7,7 @@ const serviceSectorsRepo = require('../db/repositories/serviceSectorsRepo');
 const { isValidName, NAME_MAX_LENGTH } = require('./nameValidationService');
 const { normalizeMobile } = require('./mobileService');
 const otpService = require('./otpService');
+const otpRepo = require('../db/repositories/otpRepo');
 const { registry } = require('../modules/registry');
 const { ApiError } = require('../utils/apiResponse');
 
@@ -87,11 +88,57 @@ async function startSession() {
   return { session, reply: { text: 'May I know your full name?', options: null } };
 }
 
+// A chat can be picked up again (after a refresh, or on another page of the
+// site) for this long after it started. The widget's cookie uses the same TTL.
+const SESSION_RESUME_TTL_SECONDS = 24 * 60 * 60;
+
+// Returns the full visible history plus what the widget must show for the
+// current step (options, OTP buttons, results link) so it can rebuild the
+// chat exactly where the user left it.
 async function resumeSession(sessionId) {
   const session = await sessionsRepo.findById(sessionId);
   if (!session) throw new ApiError(404, 'SESSION_NOT_FOUND', 'This chat session no longer exists.');
+  const age = await sessionsRepo.ageSeconds(sessionId);
+  if (age != null && age >= SESSION_RESUME_TTL_SECONDS) {
+    throw new ApiError(410, 'SESSION_EXPIRED', 'This chat has expired. Please start a new one.');
+  }
   const history = await messagesRepo.listForSession(sessionId);
-  return { session, history };
+  return { session, history, reply: await currentPrompt(session) };
+}
+
+// Options/extra data for the step the session is currently waiting at —
+// same shape as the `reply` every step returns, minus any new message text.
+async function currentPrompt(session) {
+  const none = { text: null, options: null };
+  switch (session.state) {
+    case STATES.VERIFY_OTP: {
+      const { sentCount, secondsSinceLast } = await otpRepo.sendStats(session.session_id);
+      const limitReached = sentCount >= otpService.OTP_MAX_SENDS_PER_SESSION;
+      const wait = secondsSinceLast == null ? 0 : Math.max(0, otpService.OTP_RESEND_COOLDOWN_SECONDS - secondsSinceLast);
+      return { ...none, otpLength: otpService.OTP_LENGTH, resendAfterSeconds: limitReached ? null : wait };
+    }
+    case STATES.PROPERTY_CATEGORY:
+    case STATES.PROPERTY_SUBCATEGORY:
+    case STATES.LOCATION: {
+      const { reply } = await reenterState(session.session_id, session.state);
+      return { ...none, options: reply.options };
+    }
+    case STATES.LOCATION_UNSERVICEABLE:
+      return { ...none, options: [{ id: 'retry', label: 'Try another area' }] };
+    case STATES.NO_MATCH:
+      return { ...none, options: [{ id: 'retry', label: 'Adjust preferences' }] };
+    case STATES.SHOW_RESULTS: {
+      const category = session.category_id ? await categoriesRepo.findById(session.category_id) : null;
+      const subcategory = session.subcategory_id ? await subcategoriesRepo.findById(session.subcategory_id) : null;
+      const sector = (await serviceSectorsRepo.listActive()).find((s) => s.id === session.service_sector_id);
+      const result = registry.inventory
+        ? await registry.inventory.findMatches({ category: category?.name, subCategory: subcategory?.name, location: sector?.sector_name })
+        : {};
+      return { ...none, options: [{ id: 'open', label: 'Open Results' }, { id: 'link', label: 'Get Link' }], resultUrl: result.resultUrl };
+    }
+    default:
+      return none;
+  }
 }
 
 async function submitName(sessionId, rawName) {
@@ -123,7 +170,7 @@ async function submitMobile(sessionId, rawMobile) {
 
   const normalized = normalizeMobile(rawMobile);
   if (!normalized) {
-    const text = 'That doesn’t look like a valid Indian mobile number — please share a 10-digit number starting with 6, 7, 8 or 9.';
+    const text = 'That doesn’t look like a valid mobile number for the selected country — please check and try again.';
     await messagesRepo.add({ sessionId, responseType: 'bot', messageText: text });
     return { session: await reload(sessionId), reply: { text, options: null } };
   }
@@ -409,6 +456,7 @@ async function mainMenu(sessionId) {
 
 module.exports = {
   STATES,
+  SESSION_RESUME_TTL_SECONDS,
   startSession,
   resumeSession,
   submitName,

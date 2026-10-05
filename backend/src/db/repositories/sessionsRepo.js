@@ -9,6 +9,15 @@ async function findById(sessionId) {
   return rows[0] || null;
 }
 
+// Age of a session in seconds, computed on the DB clock (no timezone drift).
+async function ageSeconds(sessionId) {
+  const [rows] = await pool.query(
+    'SELECT TIMESTAMPDIFF(SECOND, created_at, NOW()) AS age FROM chatbot_sessions WHERE session_id = :sessionId',
+    { sessionId }
+  );
+  return rows[0] ? Number(rows[0].age) : null;
+}
+
 async function updateFields(sessionId, fields) {
   const colMap = {
     name: 'name', email: 'email', mobileNumber: 'mobile_number', chatLanguage: 'chat_language',
@@ -56,4 +65,4 @@ async function list({
   return { rows, total };
 }
 
-module.exports = { create, findById, updateFields, list };
+module.exports = { create, findById, ageSeconds, updateFields, list };

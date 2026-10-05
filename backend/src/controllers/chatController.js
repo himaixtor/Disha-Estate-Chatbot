@@ -22,8 +22,15 @@ const createSession = asyncHandler(async (req, res) => {
 });
 
 const getSession = asyncHandler(async (req, res) => {
-  const { session, history } = await workflow.resumeSession(req.params.id);
-  ok(res, { session: serializeSession(session), history });
+  const { session, history, reply } = await workflow.resumeSession(req.params.id);
+  ok(res, {
+    session: serializeSession(session),
+    // Only what the widget needs to redraw the conversation.
+    history: history
+      .filter((m) => m.response_type === 'user' || m.response_type === 'bot')
+      .map((m) => ({ sender: m.response_type, text: m.message_text })),
+    reply,
+  });
 });
 
 const submitName = asyncHandler(async (req, res) => {

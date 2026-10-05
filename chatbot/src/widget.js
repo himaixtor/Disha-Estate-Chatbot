@@ -23,7 +23,7 @@
     // Disha brand palette, sampled from the marketing site's home page
     // (warm coral accent on a cream ground, deep maroon header/footer).
     // Branding is config, not code — see the module note above to reskin.
-    primaryColor: '#000000',
+    primaryColor: 'linear-gradient(90deg, #e9161f, #b10e16);',
     primaryDark: '#2A0905',
     accentColor: '#EB161F',
     accentHover: '#C93420',
@@ -39,6 +39,61 @@
     },
     window.DishaChatbotConfig || {}
   );
+
+  // Mobile regions offered in the country-code picker. `len` = digits in the
+  // national number (without the leading 0), `re` = valid mobile pattern.
+  // Must match COUNTRIES in backend/src/services/mobileService.js.
+  const COUNTRIES = [
+    { dial: '+91', label: 'IN +91', len: 10, re: /^[6-9]\d{9}$/ },
+    { dial: '+1', label: 'US/CA +1', len: 10, re: /^[2-9]\d{2}[2-9]\d{6}$/ },
+    { dial: '+44', label: 'UK +44', len: 10, re: /^7\d{9}$/ },
+    { dial: '+61', label: 'AU +61', len: 9, re: /^4\d{8}$/ },
+    { dial: '+971', label: 'AE +971', len: 9, re: /^5[024568]\d{7}$/ },
+    { dial: '+974', label: 'QA +974', len: 8, re: /^[3567]\d{7}$/ },
+  ];
+
+  // ---- Chat persistence -------------------------------------------------
+  // The session id lives in a first-party cookie on the host site for 24h
+  // from when the chat started, so a refresh, or opening the chatbot on
+  // another page of the same site (e.g. after following the results link),
+  // continues the same conversation. The cookie is set on the site's parent
+  // domain when possible, so dishaestate.com and uat.dishaestate.com share it.
+  const SESSION_COOKIE = 'disha_chat_session';
+  const SESSION_TTL_SECONDS = 24 * 60 * 60; // backend SESSION_RESUME_TTL_SECONDS
+
+  function readSessionCookie() {
+    const hit = document.cookie.split('; ').find((c) => c.startsWith(`${SESSION_COOKIE}=`));
+    return hit ? decodeURIComponent(hit.slice(SESSION_COOKIE.length + 1)) : null;
+  }
+
+  // Candidate cookie domains, broadest first: ["example.com", "uat.example.com"].
+  // IPs and localhost get none (host-only cookie).
+  function cookieDomains() {
+    const host = location.hostname;
+    if (!host || !host.includes('.') || /^[\d.]+$/.test(host)) return [];
+    const parts = host.split('.');
+    const out = [];
+    for (let i = parts.length - 2; i >= 0; i -= 1) out.push(parts.slice(i).join('.'));
+    return out;
+  }
+
+  function writeSessionCookie(value) {
+    const secure = location.protocol === 'https:' ? '; Secure' : '';
+    const base = `${SESSION_COOKIE}=${encodeURIComponent(value)}; Max-Age=${SESSION_TTL_SECONDS}; Path=/; SameSite=Lax${secure}`;
+    // Browsers silently refuse public suffixes (e.g. "co.in"), so the first
+    // domain that actually sticks is the site's own parent domain.
+    for (const domain of cookieDomains()) {
+      document.cookie = `${base}; Domain=.${domain}`;
+      if (readSessionCookie() === value) return;
+    }
+    document.cookie = base;
+  }
+
+  function clearSessionCookie() {
+    const expired = `${SESSION_COOKIE}=; Max-Age=0; Path=/; SameSite=Lax`;
+    cookieDomains().forEach((domain) => { document.cookie = `${expired}; Domain=.${domain}`; });
+    document.cookie = expired;
+  }
 
   const STYLES = `
     :host { all: initial; }
@@ -82,6 +137,9 @@
     .chip:hover { border-color: ${config.accentColor}; color: ${config.accentColor}; background: #FDECEA; }
     .footer { padding: 12px; background: #fff; border-top: 1px solid #F0E4D8; display: flex; gap: 8px; }
     .footer.hidden { display: none; }
+    .footer select { flex: none; padding: 0 8px; border: 1px solid #E8D9C9; border-radius: 20px; font-size: .8rem; background: #fff; color: #241C18; outline: none; cursor: pointer; }
+    .footer select:focus { border-color: ${config.accentColor}; }
+    .footer select.hidden { display: none; }
     .footer input { flex: 1; padding: 10px 14px; border: 1px solid #E8D9C9; border-radius: 20px; font-size: .88rem; outline: none; min-width: 0; }
     .footer input:focus { border-color: ${config.accentColor}; }
     .footer button { background: ${config.accentColor}; color: #fff; border: none; border-radius: 20px; padding: 0 16px; font-size: .88rem; font-weight: 500; cursor: pointer; }
@@ -114,6 +172,9 @@
       </header>
       <div class="body" id="body"></div>
       <form class="footer" id="form">
+        <select id="country" class="hidden" aria-label="Country code">
+          ${COUNTRIES.map((c) => `<option value="${c.dial}">${c.label}</option>`).join('')}
+        </select>
         <input type="text" id="input" placeholder="Type here..." autocomplete="off" />
         <button type="submit" id="sendBtn">Send</button>
       </form>
@@ -129,6 +190,7 @@
         window: this.shadow.getElementById('window'),
         close: this.shadow.getElementById('closeBtn'),
         body: this.shadow.getElementById('body'),
+        country: this.shadow.getElementById('country'),
         form: this.shadow.getElementById('form'),
         input: this.shadow.getElementById('input'),
         send: this.shadow.getElementById('sendBtn'),
@@ -143,6 +205,10 @@
       this.el.close.addEventListener('click', () => this.el.window.classList.add('hidden'));
       this.el.form.addEventListener('submit', (e) => this._onSubmit(e));
       this.el.input.addEventListener('input', () => this._filterInput());
+      this.el.country.addEventListener('change', () => {
+        this._applyCountry();
+        this.el.input.focus();
+      });
     }
 
     // Digits-only fields (mobile number, OTP): strip anything that isn't a
@@ -159,11 +225,28 @@
         return;
       }
       if (f === 'mobile') {
-        if (digits.length === 12 && digits.startsWith('91')) digits = digits.slice(2);
-        else if (digits.length === 11 && digits.startsWith('0')) digits = digits.slice(1);
+        // Pasted with the country code or a trunk "0" in front → keep the national part.
+        const c = this._country();
+        const cc = c.dial.slice(1);
+        if (digits.length === c.len + cc.length && digits.startsWith(cc)) digits = digits.slice(cc.length);
+        // No supported region has a mobile number starting with 0 once the
+        // trunk prefix is dropped (050… → 50…, 07911… → 7911…).
+        digits = digits.replace(/^0+/, '');
       }
       digits = digits.slice(0, this.el.input.maxLength > 0 ? this.el.input.maxLength : undefined);
       if (digits !== this.el.input.value) this.el.input.value = digits;
+    }
+
+    _country() {
+      return COUNTRIES.find((c) => c.dial === this.el.country.value) || COUNTRIES[0];
+    }
+
+    // Length limit + placeholder follow the selected country.
+    _applyCountry() {
+      const c = this._country();
+      this.el.input.maxLength = c.len;
+      this.el.input.placeholder = `${c.len}-digit mobile number`;
+      this._filterInput();
     }
 
     // "Resend OTP" (with a countdown) + "Change number" under the OTP prompt.
@@ -252,8 +335,13 @@
     async _toggleWindow() {
       const wasHidden = this.el.window.classList.contains('hidden');
       this.el.window.classList.toggle('hidden');
-      if (wasHidden && !this.sessionId) {
-        await this._start();
+      if (wasHidden && !this.sessionId && !this._opening) {
+        this._opening = true;
+        try {
+          if (!(await this._resume())) await this._start();
+        } finally {
+          this._opening = false;
+        }
       }
     }
 
@@ -344,8 +432,9 @@
 
     _setInputMode({
       placeholder = 'Type here...', type = 'text', disabled = false, hidden = false,
-      filter = null, maxLength = null, inputMode = 'text', autocomplete = 'off',
+      filter = null, maxLength = null, inputMode = 'text', autocomplete = 'off', showCountry = false,
     } = {}) {
+      this.el.country.classList.toggle('hidden', !showCountry);
       this._inputFilter = filter; // null | 'mobile' | 'digits'
       this.el.input.value = '';
       this.el.input.placeholder = placeholder;
@@ -358,10 +447,29 @@
       this.el.form.classList.toggle('hidden', hidden);
     }
 
+    // Rebuilds a chat started within the last 24h (cookie) — history plus the
+    // current step's buttons/input. Returns false if there's nothing to resume.
+    async _resume() {
+      const savedId = readSessionCookie();
+      if (!savedId) return false;
+      let data;
+      try {
+        data = await this._api(`/chat/session/${encodeURIComponent(savedId)}`);
+      } catch (_err) {
+        clearSessionCookie(); // expired (24h) or no longer exists — start fresh
+        return false;
+      }
+      this.sessionId = data.session.sessionId;
+      (data.history || []).forEach((m) => this._addMessage(m.text, m.sender));
+      await this._handleReply({ session: data.session, reply: data.reply || {} }, { silent: true });
+      return true;
+    }
+
     async _start() {
       await this._typingDelay(300);
       const { session, reply } = await this._api('/chat/session', { method: 'POST' });
       this.sessionId = session.sessionId;
+      writeSessionCookie(session.sessionId);
       this._lastKnownState = session.state;
       this._addMessage(config.welcomeText, 'bot');
       await this._typingDelay(300);
@@ -387,13 +495,14 @@
           this._addMessage(value, 'user');
           await this._handleReply(await this._api(`/chat/session/${this.sessionId}/name`, { method: 'POST', body: { name: value } }));
         } else if (state === 'COLLECT_MOBILE') {
-          if (!/^[6-9]\d{9}$/.test(value)) {
+          const c = this._country();
+          if (!c.re.test(value)) {
             this.el.input.value = value;
-            this._addMessage('Please enter a valid 10-digit Indian mobile number starting with 6, 7, 8 or 9.', 'bot');
+            this._addMessage(`Please enter a valid ${c.len}-digit mobile number for ${c.dial}.`, 'bot');
             return;
           }
-          this._addMessage(value, 'user');
-          await this._handleReply(await this._api(`/chat/session/${this.sessionId}/mobile`, { method: 'POST', body: { mobileNumber: value } }));
+          this._addMessage(`${c.dial} ${value}`, 'user');
+          await this._handleReply(await this._api(`/chat/session/${this.sessionId}/mobile`, { method: 'POST', body: { mobileNumber: `${c.dial}${value}` } }));
         } else if (state === 'VERIFY_OTP') {
           const len = this._otpLength || 4;
           if (!new RegExp(`^\\d{${len}}$`).test(value)) {
@@ -414,21 +523,26 @@
       }
     }
 
-    async _handleReply(data) {
+    // silent: redraw the current step's UI without a new bot message (used
+    // when resuming a saved chat — the message is already in the history).
+    async _handleReply(data, { silent = false } = {}) {
       this._clearOtpActions();
       // Option chips from an earlier step must not stay clickable once the
       // conversation has moved on (e.g. after Back to main menu).
       this.el.body.querySelectorAll('.options').forEach((el) => el.remove());
       this._lastKnownState = data.session.state;
-      await this._typingDelay(350);
-      this._addMessage(data.reply.text, 'bot');
+      if (!silent) {
+        await this._typingDelay(350);
+        this._addMessage(data.reply.text, 'bot');
+      }
 
       switch (data.session.state) {
         case 'COLLECT_NAME':
           this._setInputMode({ placeholder: 'Your full name', filter: 'name', maxLength: NAME_MAX_LENGTH, autocomplete: 'name' });
           break;
         case 'COLLECT_MOBILE':
-          this._setInputMode({ placeholder: '10-digit mobile number', type: 'tel', filter: 'mobile', maxLength: 10, inputMode: 'numeric', autocomplete: 'tel-national' });
+          this._setInputMode({ type: 'tel', filter: 'mobile', inputMode: 'numeric', autocomplete: 'tel-national', showCountry: true });
+          this._applyCountry();
           break;
         case 'VERIFY_OTP': {
           this._otpLength = data.reply.otpLength || this._otpLength || 4;
