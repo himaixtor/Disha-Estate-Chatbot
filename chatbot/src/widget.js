@@ -137,17 +137,17 @@
     .bubble a { color: ${config.accentColor}; font-weight: 600; text-decoration: underline; overflow-wrap: anywhere; word-break: break-all; }
     .row.user .bubble a { color: #fff; }
     .options { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
-    .options.searchable { display: block; width: 100%; }
+    .options.searchable, .options.multiple { display: block; width: 100%; }
     .options-tools { display: flex; align-items: center; gap: 12px; margin-bottom: 9px; }
     .options-search { width: 100%; min-width: 0; height: 38px; border: 1px solid #E8D9C9; border-radius: 9px; padding: 0 11px; color: #241C18; font-size: .82rem; outline: 0; }
     .options-search:focus { border-color: ${config.accentColor}; box-shadow: 0 0 0 2px rgba(235,22,31,.1); }
     .options-count { color: #8A7B72; font-size: .7rem; white-space: nowrap; }
     .options-list { display: flex; flex-wrap: wrap; gap: 8px; }
     .options-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 9px; }
-    .options-list.location-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: 230px; overflow-y: auto; align-content: start; padding: 1px 5px 5px 1px; scrollbar-color: #D8B7A5 #fff; scrollbar-width: thin; }
-    .location-options::-webkit-scrollbar { width: 7px; }
-    .location-options::-webkit-scrollbar-thumb { background: #D8B7A5; border: 2px solid #fff; border-radius: 8px; }
-    .location-options .chip { min-width: 0; overflow: hidden; text-align: left; text-overflow: ellipsis; white-space: nowrap; border-radius: 9px; }
+    .options-list.scrollable-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: 230px; overflow-y: auto; align-content: start; padding: 1px 5px 5px 1px; scrollbar-color: #D8B7A5 #fff; scrollbar-width: thin; }
+    .scrollable-options::-webkit-scrollbar { width: 7px; }
+    .scrollable-options::-webkit-scrollbar-thumb { background: #D8B7A5; border: 2px solid #fff; border-radius: 8px; }
+    .scrollable-options .chip { min-width: 0; overflow: hidden; text-align: left; text-overflow: ellipsis; white-space: nowrap; border-radius: 9px; }
     .options-empty { grid-column: 1 / -1; padding: 14px 8px; color: #8A7B72; font-size: .8rem; text-align: center; }
     .property-results { display: grid; gap: 9px; width: 100%; margin-top: 3px; }
     .property-card { display: grid; grid-template-columns: 92px minmax(0, 1fr); min-height: 92px; overflow: hidden; border: 1px solid #E8D9C9; border-radius: 10px; background: #fff; }
@@ -159,7 +159,7 @@
     .property-card-title-link:focus-visible { outline: 2px solid ${config.accentColor}; outline-offset: 2px; }
     .property-card-price { color: ${config.accentColor}; font-size: .78rem; font-weight: 700; }
     .property-card-details { color: #75675F; font-size: .68rem; line-height: 1.35; overflow-wrap: anywhere; }
-    .chip { background: #fff; border: 1px solid #E8D9C9; color: #241C18; padding: 7px 12px; border-radius: 20px; font-size: .8rem; font-weight: 500; cursor: pointer; }
+    .chip { background: #fff; border: 1px solid #E8D9C9; color: #241C18; padding: 7px 12px; border-radius: 10px; font-size: .8rem; font-weight: 500; cursor: pointer; }
     .chip.selected { background: #FDECEA; border-color: ${config.accentColor}; color: ${config.accentColor}; }
     .chip.continue { background: ${config.accentColor}; border-color: ${config.accentColor}; color: #fff; }
     .chip.continue:hover { background: ${config.accentHover}; border-color: ${config.accentHover}; color: #fff; }
@@ -575,6 +575,8 @@
       const container = document.createElement('div');
       container.className = 'options';
       const choices = options || [];
+      const useSearch = searchable || choices.length > 10;
+      if (multiple) container.classList.add('multiple');
       let optionList = container;
       let optionActions = null;
       let searchInput = null;
@@ -582,36 +584,42 @@
       let emptyState = null;
       const optionChips = [];
       let matchingCount = choices.length;
-      if (searchable) {
+      if (useSearch) {
         container.classList.add('searchable');
         const tools = document.createElement('div');
         tools.className = 'options-tools';
         searchInput = document.createElement('input');
         searchInput.type = 'search';
         searchInput.className = 'options-search';
-        searchInput.placeholder = 'Search localities';
-        searchInput.setAttribute('aria-label', 'Search localities');
+        searchInput.placeholder = searchable ? 'Search localities' : 'Search options';
+        searchInput.setAttribute('aria-label', searchInput.placeholder);
         selectedCount = document.createElement('span');
         selectedCount.className = 'options-count';
         tools.append(searchInput, selectedCount);
         optionList = document.createElement('div');
-        optionList.className = 'options-list location-options';
+        optionList.className = 'options-list scrollable-options';
         optionActions = document.createElement('div');
         optionActions.className = 'options-actions';
         emptyState = document.createElement('div');
         emptyState.className = 'options-empty';
-        emptyState.textContent = 'No localities match your search.';
+        emptyState.textContent = searchable ? 'No localities match your search.' : 'No options match your search.';
         emptyState.hidden = true;
         container.append(tools, optionList, optionActions);
       } else if (multiple) {
         optionList = document.createElement('div');
         optionList.className = 'options-list';
-        container.appendChild(optionList);
+        optionActions = document.createElement('div');
+        optionActions.className = 'options-actions';
+        container.append(optionList, optionActions);
       }
       const selected = new Set(selectedIds.map(Number));
       let continueButton = null;
       const updateSelectedCount = () => {
-        if (selectedCount) selectedCount.textContent = `${selected.size} selected · ${matchingCount} found`;
+        if (selectedCount) {
+          selectedCount.textContent = multiple
+            ? `${selected.size} selected · ${matchingCount} found`
+            : `${matchingCount} found`;
+        }
       };
       const updateContinue = () => {
         if (continueButton) continueButton.disabled = selected.size === 0;
@@ -678,9 +686,9 @@
           onSelect(selectedOptions);
         });
         (optionActions || optionList).appendChild(continueButton);
-        updateSelectedCount();
       }
       if (searchInput) {
+        updateSelectedCount();
         searchInput.addEventListener('input', () => {
           const query = searchInput.value.trim().toLocaleLowerCase();
           matchingCount = 0;
