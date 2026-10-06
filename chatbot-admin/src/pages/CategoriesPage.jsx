@@ -9,8 +9,8 @@ export default function CategoriesPage() {
   const [syncMessage, setSyncMessage] = useState(null);
   const [syncing, setSyncing] = useState(false);
   const [expanded, setExpanded] = useState(() => new Set());
-  const [catModal, setCatModal] = useState(null); // { mode: 'new'|'edit', data }
-  const [subModal, setSubModal] = useState(null); // { mode, categoryId, data }
+  const [catModal, setCatModal] = useState(null);
+  const [subModal, setSubModal] = useState(null);
 
   const load = useCallback(() => {
     Promise.all([api.get('/categories/admin/all'), api.get('/subcategories')])
@@ -21,11 +21,7 @@ export default function CategoriesPage() {
   useEffect(() => { load(); }, [load]);
 
   async function saveCategory(form) {
-    if (catModal.mode === 'new') {
-      await api.post('/categories', { name: form.name, sortOrder: Number(form.sortOrder) || 0 });
-    } else {
-      await api.patch(`/categories/${catModal.data.id}`, { name: form.name, sortOrder: Number(form.sortOrder) || 0 });
-    }
+    await api.patch(`/categories/${catModal.data.id}`, { name: form.name, sortOrder: Number(form.sortOrder) || 0 });
     setCatModal(null);
     load();
   }
@@ -36,11 +32,7 @@ export default function CategoriesPage() {
   }
 
   async function saveSubcategory(form) {
-    if (subModal.mode === 'new') {
-      await api.post('/subcategories', { categoryId: subModal.categoryId, name: form.name, sortOrder: Number(form.sortOrder) || 0 });
-    } else {
-      await api.patch(`/subcategories/${subModal.data.id}`, { name: form.name, sortOrder: Number(form.sortOrder) || 0 });
-    }
+    await api.patch(`/subcategories/${subModal.data.id}`, { name: form.name, sortOrder: Number(form.sortOrder) || 0 });
     setSubModal(null);
     load();
   }
@@ -85,7 +77,6 @@ export default function CategoriesPage() {
             <button className="btn" onClick={() => (isChild
               ? setSubModal({ mode: 'edit', categoryId: category.parent_id, data: category })
               : setCatModal({ mode: 'edit', data: category }))}>Edit</button>
-            <button className="btn" onClick={() => setSubModal({ mode: 'new', categoryId: category.id, data: { name: '', sortOrder: 0 } })}>Add child</button>
             <button className="btn danger" onClick={() => (isChild ? toggleSubActive(category) : toggleCategoryActive(category))}>
               {category.is_active ? 'Deactivate' : 'Activate'}
             </button>
@@ -115,12 +106,9 @@ export default function CategoriesPage() {
     <>
       <div className="page-header">
         <h1>Categories</h1>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          <button className="btn" onClick={syncFromCms} disabled={syncing}>
-            {syncing ? 'Syncing…' : 'Sync from CMS'}
-          </button>
-          <button className="btn primary" onClick={() => setCatModal({ mode: 'new', data: { name: '', sortOrder: 0 } })}>+ New category</button>
-        </div>
+        <button className="btn" onClick={syncFromCms} disabled={syncing}>
+          {syncing ? 'Syncing…' : 'Sync from CMS'}
+        </button>
       </div>
 
       {error && <div className="error-text">{error}</div>}
@@ -138,13 +126,13 @@ export default function CategoriesPage() {
       </div>
 
       {catModal && (
-        <Modal title={catModal.mode === 'new' ? 'New category' : 'Edit category'} onClose={() => setCatModal(null)}>
+        <Modal title="Edit category" onClose={() => setCatModal(null)}>
           <NameSortForm initial={catModal.data} onSubmit={saveCategory} onCancel={() => setCatModal(null)} />
         </Modal>
       )}
 
       {subModal && (
-        <Modal title={subModal.mode === 'new' ? 'New child category' : 'Edit child category'} onClose={() => setSubModal(null)}>
+        <Modal title="Edit child category" onClose={() => setSubModal(null)}>
           <NameSortForm initial={subModal.data} onSubmit={saveSubcategory} onCancel={() => setSubModal(null)} />
         </Modal>
       )}

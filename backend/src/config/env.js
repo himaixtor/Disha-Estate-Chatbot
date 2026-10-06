@@ -52,9 +52,10 @@ const env = {
   },
 
   inventory: {
-    apiUrl: process.env.INVENTORY_API_URL || '',
-    apiKey: process.env.INVENTORY_API_KEY || '',
+    apiUrl: process.env.INVENTORY_API_URL || 'https://cms.dishaestate.com/wp-json/disha-estate/v1/property/',
+    apiKey: process.env.INVENTORY_API_KEY || process.env.CMS_FILTERS_API_KEY || '',
     resultsBaseUrl: process.env.INVENTORY_RESULTS_BASE_URL || 'https://disha-estate-management.vercel.app/property',
+    propertyDetailBaseUrl: process.env.INVENTORY_PROPERTY_DETAIL_BASE_URL || 'https://uat.dishaestate.com/property',
   },
 
   cmsFilters: {

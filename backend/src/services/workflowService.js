@@ -158,12 +158,17 @@ async function currentPrompt(session) {
       const sectors = (await serviceSectorsRepo.listActive()).filter((sector) => sectorIds.includes(sector.id));
       const result = registry.inventory
         ? await registry.inventory.findMatches({
-          category: categories.filter(Boolean).map((category) => category.name),
+          category: categories.filter(Boolean).map((category) => category.cms_slug || category.name),
           subCategory: subcategories.filter(Boolean).map((subcategory) => subcategory.name),
           location: sectors.map((sector) => sector.slug),
         })
         : {};
-      return { ...none, options: [{ id: 'open', label: 'Open Results' }, { id: 'link', label: 'Get Link' }], resultUrl: result.resultUrl };
+      return {
+        ...none,
+        options: [{ id: 'open', label: 'Open Results' }, { id: 'link', label: 'Get Link' }],
+        resultUrl: result.resultUrl,
+        properties: result.properties || [],
+      };
     }
     default:
       return none;
@@ -448,7 +453,7 @@ async function matchInventory(sessionId) {
   const selectedSectors = sectors.filter((sector) => sectorIds.includes(sector.id));
 
   const result = await registry.inventory.findMatches({
-    category: categories.filter(Boolean).map((category) => category.name),
+    category: categories.filter(Boolean).map((category) => category.cms_slug || category.name),
     subCategory: subcategories.filter(Boolean).map((subcategory) => subcategory.name),
     location: selectedSectors.map((sector) => sector.slug),
   });
@@ -465,7 +470,12 @@ async function matchInventory(sessionId) {
   await messagesRepo.add({ sessionId, responseType: 'bot', messageText: text });
   return {
     session: await reload(sessionId),
-    reply: { text, options: [{ id: 'open', label: 'Open Results' }, { id: 'link', label: 'Get Link' }], resultUrl: result.resultUrl },
+    reply: {
+      text,
+      options: [{ id: 'open', label: 'Open Results' }, { id: 'link', label: 'Get Link' }],
+      resultUrl: result.resultUrl,
+      properties: result.properties || [],
+    },
   };
 }
 

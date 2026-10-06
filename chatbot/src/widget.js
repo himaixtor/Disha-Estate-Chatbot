@@ -149,6 +149,16 @@
     .location-options::-webkit-scrollbar-thumb { background: #D8B7A5; border: 2px solid #fff; border-radius: 8px; }
     .location-options .chip { min-width: 0; overflow: hidden; text-align: left; text-overflow: ellipsis; white-space: nowrap; border-radius: 9px; }
     .options-empty { grid-column: 1 / -1; padding: 14px 8px; color: #8A7B72; font-size: .8rem; text-align: center; }
+    .property-results { display: grid; gap: 9px; width: 100%; margin-top: 3px; }
+    .property-card { display: grid; grid-template-columns: 92px minmax(0, 1fr); min-height: 92px; overflow: hidden; border: 1px solid #E8D9C9; border-radius: 10px; background: #fff; }
+    .property-card-image { width: 92px; height: 100%; min-height: 92px; object-fit: cover; background: #F5E9DE; }
+    .property-card-content { display: flex; min-width: 0; flex-direction: column; justify-content: center; gap: 4px; padding: 9px 11px; }
+    .property-card-title { overflow: hidden; color: #241C18; font-size: .82rem; font-weight: 600; line-height: 1.3; text-overflow: ellipsis; }
+    .property-card-title-link { color: inherit; text-decoration: none; }
+    .property-card-title-link:hover { color: ${config.accentColor}; text-decoration: underline; }
+    .property-card-title-link:focus-visible { outline: 2px solid ${config.accentColor}; outline-offset: 2px; }
+    .property-card-price { color: ${config.accentColor}; font-size: .78rem; font-weight: 700; }
+    .property-card-details { color: #75675F; font-size: .68rem; line-height: 1.35; overflow-wrap: anywhere; }
     .chip { background: #fff; border: 1px solid #E8D9C9; color: #241C18; padding: 7px 12px; border-radius: 20px; font-size: .8rem; font-weight: 500; cursor: pointer; }
     .chip.selected { background: #FDECEA; border-color: ${config.accentColor}; color: ${config.accentColor}; }
     .chip.continue { background: ${config.accentColor}; border-color: ${config.accentColor}; color: #fff; }
@@ -504,6 +514,61 @@
       this.el.body.scrollTop = this.el.body.scrollHeight;
     }
 
+    _addPropertyCards(properties) {
+      if (!Array.isArray(properties) || properties.length === 0) return;
+      const list = document.createElement('div');
+      list.className = 'property-results';
+      properties.forEach((property) => {
+        const card = document.createElement('article');
+        card.className = 'property-card';
+        const imageUrl = property.image;
+        if (imageUrl && /^https?:\/\//i.test(imageUrl)) {
+          const image = document.createElement('img');
+          image.className = 'property-card-image';
+          image.src = imageUrl;
+          image.alt = property.imageAlt || property.name || 'Property image';
+          image.loading = 'lazy';
+          image.referrerPolicy = 'no-referrer';
+          image.addEventListener('error', () => image.remove(), { once: true });
+          card.appendChild(image);
+        }
+        const content = document.createElement('div');
+        content.className = 'property-card-content';
+        let detailUrl = '';
+        try {
+          const url = new URL(property.detailUrl);
+          if (url.protocol === 'https:' || url.protocol === 'http:') detailUrl = url.href;
+        } catch (_err) { /* show a plain title when the detail URL is invalid */ }
+        const title = document.createElement(detailUrl ? 'a' : 'div');
+        title.className = 'property-card-title';
+        title.textContent = property.name || 'Property';
+        if (detailUrl) {
+          title.classList.add('property-card-title-link');
+          title.href = detailUrl;
+          title.target = '_blank';
+          title.rel = 'noopener noreferrer';
+        }
+        content.appendChild(title);
+        if (property.price) {
+          const price = document.createElement('div');
+          price.className = 'property-card-price';
+          price.textContent = property.price;
+          content.appendChild(price);
+        }
+        const details = [property.propertyType, property.configuration, property.location].filter(Boolean);
+        if (details.length) {
+          const summary = document.createElement('div');
+          summary.className = 'property-card-details';
+          summary.textContent = details.join(' · ');
+          content.appendChild(summary);
+        }
+        card.appendChild(content);
+        list.appendChild(card);
+      });
+      this.el.body.appendChild(list);
+      this.el.body.scrollTop = this.el.body.scrollHeight;
+    }
+
     // { withBack: true } appends a "Back" chip that steps the workflow back one
     // step (server-side BACK_MAP) — shown from sub-category selection onwards.
     _addOptions(options, onSelect, { withBack = false, multiple = false, selectedIds = [], searchable = false } = {}) {
@@ -756,6 +821,7 @@
         await this._typingDelay(350);
         this._addMessage(data.reply.text, 'bot');
       }
+      if (data.session.state === 'SHOW_RESULTS') this._addPropertyCards(data.reply.properties);
 
       switch (data.session.state) {
         case 'COLLECT_NAME':

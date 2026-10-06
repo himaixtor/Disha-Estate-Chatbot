@@ -3,7 +3,9 @@
  * Disha's (or any future client's) property inventory.
  *
  * @interface
- *   findMatches({ category, subCategory, location, sessionId }): Promise<{ matched: boolean, resultUrl?: string }>
+ *   findMatches({ category, subCategory, location, sessionId }): Promise<{
+ *     matched: boolean, resultUrl?: string, properties?: Array<object>
+ *   }>
  */
 class InventoryProvider {
   async findMatches(_criteria) {

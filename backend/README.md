@@ -86,8 +86,11 @@ a config change here, never a rewrite of the workflow engine.
 
 - `verification` — defaults to a console-logging channel for local dev; set
   `WHATSAPP_API_URL`/`WHATSAPP_API_TOKEN` to switch to real WhatsApp delivery.
-- `inventory` — Release 1 always uses the mock provider (`MockInventoryProvider`)
-  since Disha's real property inventory API hasn't been delivered yet.
+- `inventory` — uses the Disha property search API through
+  `DishaInventoryProvider`. It reads `INVENTORY_API_URL` (defaults to the CMS
+  property endpoint) and `INVENTORY_API_KEY` (falls back to
+  `CMS_FILTERS_API_KEY`). Property records are filtered server-side and only
+  display fields are returned to the chatbot.
 - `ai` — intentionally left out of the default `ENABLED_MODULES` list. Route
   and interface exist; no real implementation until Release 2.
 

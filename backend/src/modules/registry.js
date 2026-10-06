@@ -3,9 +3,7 @@ const env = require('../config/env');
 const ConsoleOtpChannel = require('./verification/ConsoleOtpChannel');
 const WhatsAppOtpChannel = require('./verification/WhatsAppOtpChannel');
 
-const MockInventoryProvider = require('./inventory/MockInventoryProvider');
-// Real InventoryProvider implementation plugs in here once Disha's API ships,
-// e.g.: const DishaInventoryProvider = require('./inventory/DishaInventoryProvider');
+const DishaInventoryProvider = require('./inventory/DishaInventoryProvider');
 
 const StubAIProvider = require('./ai/StubAIProvider');
 // Real AIProvider implementation plugs in here in Release 2,
@@ -28,7 +26,7 @@ function buildRegistry() {
     : new ConsoleOtpChannel();
 
   const inventory = modules.has('inventory')
-    ? new MockInventoryProvider() // swap for the real provider once available
+    ? new DishaInventoryProvider()
     : null;
 
   const ai = modules.has('ai')
