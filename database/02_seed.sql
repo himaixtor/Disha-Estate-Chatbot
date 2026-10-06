@@ -63,15 +63,15 @@ INSERT IGNORE INTO categories (parent_id, name, is_active, sort_order) VALUES
 -- ---------- Service sectors ----------
 -- Sample Ahmedabad localities — replace/extend from the Admin Portal with Disha's
 -- actual serviceable areas; these unblock local development and demos only.
-INSERT IGNORE INTO service_sectors (sector_name, area_code, is_active) VALUES
-  ('SG Highway',     '380054', 1),
-  ('Satellite',      '380015', 1),
-  ('Prahladnagar',   '380015', 1),
-  ('Bopal',          '380058', 1),
-  ('South Bopal',    '380058', 1),
-  ('Vastrapur',      '380015', 1),
-  ('Thaltej',        '380059', 1),
-  ('Science City',   '380060', 1);
+INSERT IGNORE INTO service_sectors (sector_name, slug, is_active) VALUES
+  ('SG Highway',     'sg-highway', 1),
+  ('Satellite',      'satellite', 1),
+  ('Prahladnagar',   'prahladnagar', 1),
+  ('Bopal',          'bopal', 1),
+  ('South Bopal',    'south-bopal', 1),
+  ('Vastrapur',      'vastrapur', 1),
+  ('Thaltej',        'thaltej', 1),
+  ('Science City',   'science-city', 1);
 
 -- ---------- App settings ----------
 INSERT INTO app_settings (setting_key, setting_value) VALUES

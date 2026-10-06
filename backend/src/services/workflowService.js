@@ -160,7 +160,7 @@ async function currentPrompt(session) {
         ? await registry.inventory.findMatches({
           category: categories.filter(Boolean).map((category) => category.name),
           subCategory: subcategories.filter(Boolean).map((subcategory) => subcategory.name),
-          location: sectors.map((sector) => sector.sector_name),
+          location: sectors.map((sector) => sector.slug),
         })
         : {};
       return { ...none, options: [{ id: 'open', label: 'Open Results' }, { id: 'link', label: 'Get Link' }], resultUrl: result.resultUrl };
@@ -404,7 +404,7 @@ async function submitLocation(sessionId, { serviceSectorIds = [], locationText }
   let matchedSector = null;
   if (locationText?.trim()) {
     await messagesRepo.add({ sessionId, responseType: 'user', messageText: locationText });
-    matchedSector = await serviceSectorsRepo.findByNameOrAreaCode(locationText.trim());
+    matchedSector = await serviceSectorsRepo.findByNameOrSlug(locationText.trim());
     if (!matchedSector) {
       await sessionsRepo.updateFields(sessionId, { state: STATES.LOCATION_UNSERVICEABLE, serviceSectorId: sectorIds[0] || null, serviceSectorIds: sectorIds });
       const text = `We are not providing service at this moment in your preferred area ${locationText.trim()}. Hope we will start serving soon.`;
@@ -450,7 +450,7 @@ async function matchInventory(sessionId) {
   const result = await registry.inventory.findMatches({
     category: categories.filter(Boolean).map((category) => category.name),
     subCategory: subcategories.filter(Boolean).map((subcategory) => subcategory.name),
-    location: selectedSectors.map((sector) => sector.sector_name),
+    location: selectedSectors.map((sector) => sector.slug),
   });
 
   if (!result.matched) {

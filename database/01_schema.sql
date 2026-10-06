@@ -91,14 +91,14 @@ CREATE TABLE IF NOT EXISTS categories (
 CREATE TABLE IF NOT EXISTS service_sectors (
   id INT NOT NULL AUTO_INCREMENT,
   sector_name VARCHAR(150) NOT NULL,
-  area_code VARCHAR(20) NOT NULL,
+  slug VARCHAR(250) NOT NULL,
   cms_slug VARCHAR(180) NULL,
   is_active TINYINT(1) NOT NULL DEFAULT 1,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_service_sector_name (sector_name),
   UNIQUE KEY uq_service_sector_cms_slug (cms_slug),
-  KEY idx_service_area_code (area_code)
+  KEY idx_service_sector_slug (slug)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ============================================================

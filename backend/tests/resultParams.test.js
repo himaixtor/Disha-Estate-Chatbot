@@ -38,6 +38,6 @@ test('multiple no-preference choices are omitted without dropping other selectio
 });
 
 test('multiple localities are included as one comma-separated filter', () => {
-  const p = buildResultParams({ location: ['Bopal', 'SG Highway', 'Bopal'] });
-  assert.equal(p.get('localities'), 'bopal,sg highway');
+  const p = buildResultParams({ location: ['south-bopal', 'sg-highway', 'south-bopal'] });
+  assert.equal(p.get('localities'), 'south-bopal,sg-highway');
 });

@@ -547,7 +547,7 @@ Fields:
 
 - id
 - SectorName
-- AreaCode
+- slug
 - Is_Active
 - created_at
 

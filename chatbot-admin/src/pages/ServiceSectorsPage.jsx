@@ -15,9 +15,9 @@ export default function ServiceSectorsPage() {
 
   async function save(form) {
     if (modal.mode === 'new') {
-      await api.post('/service-sectors', { sectorName: form.sectorName, areaCode: form.areaCode });
+      await api.post('/service-sectors', { sectorName: form.sectorName, slug: form.slug });
     } else {
-      await api.patch(`/service-sectors/${modal.data.id}`, { sectorName: form.sectorName, areaCode: form.areaCode });
+      await api.patch(`/service-sectors/${modal.data.id}`, { sectorName: form.sectorName });
     }
     setModal(null);
     load();
@@ -32,7 +32,7 @@ export default function ServiceSectorsPage() {
     <>
       <div className="page-header">
         <h1>Service Sectors</h1>
-        <button className="btn primary" onClick={() => setModal({ mode: 'new', data: { sectorName: '', areaCode: '' } })}>+ New sector</button>
+        <button className="btn primary" onClick={() => setModal({ mode: 'new', data: { sectorName: '', slug: '' } })}>+ New sector</button>
       </div>
 
       {error && <div className="error-text">{error}</div>}
@@ -40,12 +40,12 @@ export default function ServiceSectorsPage() {
       <div className="card">
         {sectors.length === 0 ? <div className="empty-state">No service sectors yet.</div> : (
           <table>
-            <thead><tr><th>Sector name</th><th>Area code</th><th>Status</th><th></th></tr></thead>
+            <thead><tr><th>Sector name</th><th>Slug</th><th>Status</th><th></th></tr></thead>
             <tbody>
               {sectors.map((row) => (
                 <tr key={row.id}>
                   <td>{row.sector_name}</td>
-                  <td>{row.area_code}</td>
+                  <td>{row.slug}</td>
                   <td><span className={`badge ${row.is_active ? 'active' : 'inactive'}`}>{row.is_active ? 'active' : 'inactive'}</span></td>
                   <td style={{ display: 'flex', gap: 6 }}>
                     <button className="btn" onClick={() => setModal({ mode: 'edit', data: row })}>Edit</button>
@@ -60,16 +60,16 @@ export default function ServiceSectorsPage() {
 
       {modal && (
         <Modal title={modal.mode === 'new' ? 'New service sector' : 'Edit service sector'} onClose={() => setModal(null)}>
-          <SectorForm initial={modal.data} onSubmit={save} onCancel={() => setModal(null)} />
+          <SectorForm initial={modal.data} slugReadOnly={modal.mode === 'edit'} onSubmit={save} onCancel={() => setModal(null)} />
         </Modal>
       )}
     </>
   );
 }
 
-function SectorForm({ initial, onSubmit, onCancel }) {
+function SectorForm({ initial, slugReadOnly = false, onSubmit, onCancel }) {
   const [sectorName, setSectorName] = useState(initial.sector_name || initial.sectorName || '');
-  const [areaCode, setAreaCode] = useState(initial.area_code || initial.areaCode || '');
+  const [slug, setSlug] = useState(initial.slug || '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
@@ -78,7 +78,7 @@ function SectorForm({ initial, onSubmit, onCancel }) {
     setBusy(true);
     setError(null);
     try {
-      await onSubmit({ sectorName, areaCode });
+      await onSubmit({ sectorName, slug });
     } catch (err) {
       setError(err.message);
       setBusy(false);
@@ -92,8 +92,8 @@ function SectorForm({ initial, onSubmit, onCancel }) {
         <input value={sectorName} onChange={(e) => setSectorName(e.target.value)} required minLength={2} />
       </div>
       <div className="field">
-        <label>Area code</label>
-        <input value={areaCode} onChange={(e) => setAreaCode(e.target.value)} required />
+        <label>Slug</label>
+        <input value={slug} onChange={(e) => setSlug(e.target.value)} readOnly={slugReadOnly} required maxLength={250} />
       </div>
       {error && <div className="error-text">{error}</div>}
       <div className="actions">

@@ -20,7 +20,7 @@ const COLUMN_UPGRADES = [
   ['categories', 'parent_id', 'ADD COLUMN parent_id INT NULL AFTER id'],
   ['categories', 'cms_slug', 'ADD COLUMN cms_slug VARCHAR(180) NULL AFTER name'],
   ['subcategories', 'cms_slug', 'ADD COLUMN cms_slug VARCHAR(180) NULL AFTER name'],
-  ['service_sectors', 'cms_slug', 'ADD COLUMN cms_slug VARCHAR(180) NULL AFTER area_code'],
+  ['service_sectors', 'cms_slug', 'ADD COLUMN cms_slug VARCHAR(180) NULL'],
   ['chatbot_sessions', 'category_ids', 'ADD COLUMN category_ids JSON NULL AFTER subcategory_id'],
   ['chatbot_sessions', 'subcategory_ids', 'ADD COLUMN subcategory_ids JSON NULL AFTER category_ids'],
   ['chatbot_sessions', 'service_sector_ids', 'ADD COLUMN service_sector_ids JSON NULL AFTER service_sector_id'],
@@ -31,9 +31,11 @@ const INDEX_UPGRADES = [
   ['categories', 'uq_categories_parent_cms_slug', 'CREATE UNIQUE INDEX uq_categories_parent_cms_slug ON categories (parent_id, cms_slug)'],
   ['categories', 'idx_categories_parent', 'CREATE INDEX idx_categories_parent ON categories (parent_id)'],
   ['service_sectors', 'uq_service_sector_cms_slug', 'CREATE UNIQUE INDEX uq_service_sector_cms_slug ON service_sectors (cms_slug)'],
+  ['service_sectors', 'idx_service_sector_slug', 'CREATE INDEX idx_service_sector_slug ON service_sectors (slug)'],
 ];
 
 const LEGACY_CATEGORY_INDEXES = ['uq_categories_name', 'uq_categories_cms_slug'];
+const LEGACY_SERVICE_SECTOR_INDEXES = ['idx_service_area_code'];
 
 async function columnExists(conn, table, column) {
   const [rows] = await conn.query(
@@ -72,6 +74,46 @@ async function applyLegacyCategoryIndexDrops(conn) {
     if (!rows.length) continue;
     console.log(`  - categories.${index}`);
     await conn.query(`ALTER TABLE categories DROP INDEX ${index}`);
+  }
+}
+
+async function renameAreaCodeToSlug(conn) {
+  if (!(await tableExists(conn, 'service_sectors'))) return;
+  const hasAreaCode = await columnExists(conn, 'service_sectors', 'area_code');
+  const hasSlug = await columnExists(conn, 'service_sectors', 'slug');
+
+  if (hasAreaCode && !hasSlug) {
+    await conn.query('ALTER TABLE service_sectors CHANGE COLUMN area_code slug VARCHAR(250) NOT NULL');
+    console.log('  ~ service_sectors.area_code renamed to slug VARCHAR(250)');
+  } else if (hasAreaCode && hasSlug) {
+    await conn.query("UPDATE service_sectors SET slug = area_code WHERE slug IS NULL OR TRIM(slug) = ''");
+    await conn.query('ALTER TABLE service_sectors DROP COLUMN area_code');
+    console.log('  - service_sectors.area_code removed after copying values into slug');
+  } else if (hasSlug) {
+    await conn.query('ALTER TABLE service_sectors MODIFY COLUMN slug VARCHAR(250) NOT NULL');
+  }
+
+  if (await columnExists(conn, 'service_sectors', 'slug')) {
+    const [legacyRows] = await conn.query(
+      "SELECT id, sector_name FROM service_sectors WHERE slug REGEXP '^[0-9]+$'"
+    );
+    for (const row of legacyRows) {
+      const slug = String(row.sector_name).trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      await conn.query('UPDATE service_sectors SET slug = ? WHERE id = ?', [slug, row.id]);
+    }
+  }
+}
+
+async function applyLegacyServiceSectorIndexDrops(conn) {
+  for (const index of LEGACY_SERVICE_SECTOR_INDEXES) {
+    const [rows] = await conn.query(
+      `SELECT 1 FROM INFORMATION_SCHEMA.STATISTICS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'service_sectors' AND INDEX_NAME = ? LIMIT 1`,
+      [index]
+    );
+    if (!rows.length) continue;
+    console.log(`  - service_sectors.${index}`);
+    await conn.query(`ALTER TABLE service_sectors DROP INDEX ${index}`);
   }
 }
 
@@ -188,8 +230,11 @@ async function main() {
 
   console.log('Checking for column upgrades on existing tables ...');
   await applyColumnUpgrades(conn);
+  console.log('Renaming service-sector area_code to slug ...');
+  await renameAreaCodeToSlug(conn);
   console.log('Removing legacy category indexes ...');
   await applyLegacyCategoryIndexDrops(conn);
+  await applyLegacyServiceSectorIndexDrops(conn);
   console.log('Migrating subcategories into categories ...');
   await migrateLegacySubcategories(conn);
   console.log('Checking for index upgrades ...');

@@ -137,6 +137,18 @@
     .bubble a { color: ${config.accentColor}; font-weight: 600; text-decoration: underline; overflow-wrap: anywhere; word-break: break-all; }
     .row.user .bubble a { color: #fff; }
     .options { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
+    .options.searchable { display: block; width: 100%; }
+    .options-tools { display: flex; align-items: center; gap: 12px; margin-bottom: 9px; }
+    .options-search { width: 100%; min-width: 0; height: 38px; border: 1px solid #E8D9C9; border-radius: 9px; padding: 0 11px; color: #241C18; font-size: .82rem; outline: 0; }
+    .options-search:focus { border-color: ${config.accentColor}; box-shadow: 0 0 0 2px rgba(235,22,31,.1); }
+    .options-count { color: #8A7B72; font-size: .7rem; white-space: nowrap; }
+    .options-list { display: flex; flex-wrap: wrap; gap: 8px; }
+    .options-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 9px; }
+    .options-list.location-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: 230px; overflow-y: auto; align-content: start; padding: 1px 5px 5px 1px; scrollbar-color: #D8B7A5 #fff; scrollbar-width: thin; }
+    .location-options::-webkit-scrollbar { width: 7px; }
+    .location-options::-webkit-scrollbar-thumb { background: #D8B7A5; border: 2px solid #fff; border-radius: 8px; }
+    .location-options .chip { min-width: 0; overflow: hidden; text-align: left; text-overflow: ellipsis; white-space: nowrap; border-radius: 9px; }
+    .options-empty { grid-column: 1 / -1; padding: 14px 8px; color: #8A7B72; font-size: .8rem; text-align: center; }
     .chip { background: #fff; border: 1px solid #E8D9C9; color: #241C18; padding: 7px 12px; border-radius: 20px; font-size: .8rem; font-weight: 500; cursor: pointer; }
     .chip.selected { background: #FDECEA; border-color: ${config.accentColor}; color: ${config.accentColor}; }
     .chip.continue { background: ${config.accentColor}; border-color: ${config.accentColor}; color: #fff; }
@@ -494,14 +506,51 @@
 
     // { withBack: true } appends a "Back" chip that steps the workflow back one
     // step (server-side BACK_MAP) — shown from sub-category selection onwards.
-    _addOptions(options, onSelect, { withBack = false, multiple = false, selectedIds = [] } = {}) {
+    _addOptions(options, onSelect, { withBack = false, multiple = false, selectedIds = [], searchable = false } = {}) {
       const container = document.createElement('div');
       container.className = 'options';
-      const selected = new Set(selectedIds.map(Number));
       const choices = options || [];
+      let optionList = container;
+      let optionActions = null;
+      let searchInput = null;
+      let selectedCount = null;
+      let emptyState = null;
+      const optionChips = [];
+      let matchingCount = choices.length;
+      if (searchable) {
+        container.classList.add('searchable');
+        const tools = document.createElement('div');
+        tools.className = 'options-tools';
+        searchInput = document.createElement('input');
+        searchInput.type = 'search';
+        searchInput.className = 'options-search';
+        searchInput.placeholder = 'Search localities';
+        searchInput.setAttribute('aria-label', 'Search localities');
+        selectedCount = document.createElement('span');
+        selectedCount.className = 'options-count';
+        tools.append(searchInput, selectedCount);
+        optionList = document.createElement('div');
+        optionList.className = 'options-list location-options';
+        optionActions = document.createElement('div');
+        optionActions.className = 'options-actions';
+        emptyState = document.createElement('div');
+        emptyState.className = 'options-empty';
+        emptyState.textContent = 'No localities match your search.';
+        emptyState.hidden = true;
+        container.append(tools, optionList, optionActions);
+      } else if (multiple) {
+        optionList = document.createElement('div');
+        optionList.className = 'options-list';
+        container.appendChild(optionList);
+      }
+      const selected = new Set(selectedIds.map(Number));
       let continueButton = null;
+      const updateSelectedCount = () => {
+        if (selectedCount) selectedCount.textContent = `${selected.size} selected · ${matchingCount} found`;
+      };
       const updateContinue = () => {
         if (continueButton) continueButton.disabled = selected.size === 0;
+        updateSelectedCount();
       };
       if (withBack) {
         const back = document.createElement('button');
@@ -522,6 +571,9 @@
         const isSelected = selected.has(Number(opt.id));
         chip.className = `chip${multiple && isSelected ? ' selected' : ''}`;
         chip.textContent = opt.label;
+        chip.title = opt.label;
+        chip.dataset.searchText = opt.label.toLocaleLowerCase();
+        optionChips.push(chip);
         if (multiple) {
           chip.setAttribute('aria-pressed', String(isSelected));
           chip.addEventListener('click', () => {
@@ -543,9 +595,10 @@
             onSelect(opt);
           });
         }
-        container.appendChild(chip);
+        optionList.appendChild(chip);
       });
-      if (container._backChip) container.appendChild(container._backChip);
+      if (emptyState) optionList.appendChild(emptyState);
+      if (container._backChip) (optionActions || optionList).appendChild(container._backChip);
       if (multiple) {
         continueButton = document.createElement('button');
         continueButton.type = 'button';
@@ -559,7 +612,21 @@
           this._addMessage(selectedOptions.map((option) => option.label).join(', '), 'user');
           onSelect(selectedOptions);
         });
-        container.appendChild(continueButton);
+        (optionActions || optionList).appendChild(continueButton);
+        updateSelectedCount();
+      }
+      if (searchInput) {
+        searchInput.addEventListener('input', () => {
+          const query = searchInput.value.trim().toLocaleLowerCase();
+          matchingCount = 0;
+          optionChips.forEach((chip) => {
+            const matches = chip.dataset.searchText.includes(query);
+            chip.hidden = !matches;
+            if (matches) matchingCount += 1;
+          });
+          emptyState.hidden = matchingCount > 0;
+          updateSelectedCount();
+        });
       }
       this.el.body.appendChild(container);
       this.el.body.scrollTop = this.el.body.scrollHeight;
@@ -721,6 +788,7 @@
             withBack: true,
             multiple: true,
             selectedIds: data.session.serviceSectorIds,
+            searchable: true,
           });
           break;
         case 'LOCATION_UNSERVICEABLE':

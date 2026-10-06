@@ -104,17 +104,17 @@ async function upsertLocation(conn, item) {
       [item.name]
     );
   }
-  const areaCode = String(item.slug || '').trim().slice(0, 20);
+  const slug = String(item.slug || '').trim();
   if (rows.length) {
     await conn.query(
-      'UPDATE service_sectors SET sector_name = ?, area_code = ?, cms_slug = ?, is_active = 1 WHERE id = ?',
-      [item.name, areaCode, item.cmsSlug, rows[0].id]
+      'UPDATE service_sectors SET sector_name = ?, slug = ?, cms_slug = ?, is_active = 1 WHERE id = ?',
+      [item.name, slug, item.cmsSlug, rows[0].id]
     );
     return;
   }
   await conn.query(
-    'INSERT INTO service_sectors (sector_name, area_code, cms_slug, is_active) VALUES (?, ?, ?, 1)',
-    [item.name, areaCode, item.cmsSlug]
+    'INSERT INTO service_sectors (sector_name, slug, cms_slug, is_active) VALUES (?, ?, ?, 1)',
+    [item.name, slug, item.cmsSlug]
   );
 }
 

@@ -44,10 +44,10 @@ const subcategoryUpdate = z.object({
   sortOrder: z.number().int().optional(),
 });
 
-const serviceSectorCreate = z.object({ sectorName: z.string().min(2).max(150), areaCode: z.string().min(1).max(20) });
+const serviceSectorCreate = z.object({ sectorName: z.string().min(2).max(150), slug: z.string().min(1).max(250) });
 const serviceSectorUpdate = z.object({
   sectorName: z.string().min(2).max(150).optional(),
-  areaCode: z.string().min(1).max(20).optional(),
+  slug: z.string().min(1).max(250).optional(),
   isActive: z.union([z.boolean(), z.number()]).optional(),
 });
 
