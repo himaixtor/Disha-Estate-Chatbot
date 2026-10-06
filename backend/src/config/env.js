@@ -57,6 +57,11 @@ const env = {
     resultsBaseUrl: process.env.INVENTORY_RESULTS_BASE_URL || 'https://disha-estate-management.vercel.app/property',
   },
 
+  cmsFilters: {
+    apiUrl: process.env.CMS_FILTERS_API_URL || 'https://cms.dishaestate.com/wp-json/disha-estate/v1/filters/',
+    apiKey: process.env.CMS_FILTERS_API_KEY || '',
+  },
+
   // License protection (blueprint §40 update) — license.txt is AES-256-GCM
   // authenticated-encrypted, so any direct edit to the file breaks GCM's auth
   // tag and is detected as tampering on the very next read; no separate

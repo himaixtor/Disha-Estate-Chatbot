@@ -71,30 +71,18 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
 -- ============================================================
 CREATE TABLE IF NOT EXISTS categories (
   id INT NOT NULL AUTO_INCREMENT,
+  parent_id INT NULL,
   name VARCHAR(100) NOT NULL,
+  cms_slug VARCHAR(180) NULL,
   is_active TINYINT(1) NOT NULL DEFAULT 1,
   sort_order SMALLINT NOT NULL DEFAULT 0,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
-  UNIQUE KEY uq_categories_name (name)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- ============================================================
--- subcategories — FK'd to category (blueprint Issue G3)
--- ============================================================
-CREATE TABLE IF NOT EXISTS subcategories (
-  id INT NOT NULL AUTO_INCREMENT,
-  category_id INT NOT NULL,
-  name VARCHAR(100) NOT NULL,
-  is_active TINYINT(1) NOT NULL DEFAULT 1,
-  sort_order SMALLINT NOT NULL DEFAULT 0,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
-  UNIQUE KEY uq_subcat_category_name (category_id, name),
-  KEY idx_subcat_category (category_id),
-  CONSTRAINT fk_subcat_category FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
+  UNIQUE KEY uq_categories_parent_name (parent_id, name),
+  UNIQUE KEY uq_categories_parent_cms_slug (parent_id, cms_slug),
+  KEY idx_categories_parent (parent_id),
+  CONSTRAINT fk_categories_parent FOREIGN KEY (parent_id) REFERENCES categories(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ============================================================
@@ -104,10 +92,12 @@ CREATE TABLE IF NOT EXISTS service_sectors (
   id INT NOT NULL AUTO_INCREMENT,
   sector_name VARCHAR(150) NOT NULL,
   area_code VARCHAR(20) NOT NULL,
+  cms_slug VARCHAR(180) NULL,
   is_active TINYINT(1) NOT NULL DEFAULT 1,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_service_sector_name (sector_name),
+  UNIQUE KEY uq_service_sector_cms_slug (cms_slug),
   KEY idx_service_area_code (area_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -122,7 +112,10 @@ CREATE TABLE IF NOT EXISTS chatbot_sessions (
   chat_language VARCHAR(10) NOT NULL DEFAULT 'en',
   category_id INT NULL,
   subcategory_id INT NULL,
+  category_ids JSON NULL,
+  subcategory_ids JSON NULL,
   service_sector_id INT NULL,
+  service_sector_ids JSON NULL,
   state ENUM(
     'WELCOME','COLLECT_NAME','VERIFY_NAME','COLLECT_MOBILE','SEND_OTP','VERIFY_OTP',
     'PROPERTY_CATEGORY','PROPERTY_SUBCATEGORY','LOCATION','VALIDATE_LOCATION',
@@ -147,7 +140,7 @@ CREATE TABLE IF NOT EXISTS chatbot_sessions (
   KEY idx_chatsess_sector (service_sector_id),
   CONSTRAINT fk_chatsess_user FOREIGN KEY (user_uid) REFERENCES users(uid) ON DELETE SET NULL,
   CONSTRAINT fk_chatsess_category FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL,
-  CONSTRAINT fk_chatsess_subcategory FOREIGN KEY (subcategory_id) REFERENCES subcategories(id) ON DELETE SET NULL,
+  CONSTRAINT fk_chatsess_subcategory FOREIGN KEY (subcategory_id) REFERENCES categories(id) ON DELETE SET NULL,
   CONSTRAINT fk_chatsess_sector FOREIGN KEY (service_sector_id) REFERENCES service_sectors(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

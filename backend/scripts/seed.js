@@ -17,7 +17,7 @@ async function main() {
     multipleStatements: true,
   });
 
-  console.log('Seeding roles, categories, subcategories, service sectors, app settings ...');
+  console.log('Seeding roles, category hierarchy, service sectors, app settings ...');
   await conn.query(sql);
   console.log('Seed complete. Next: npm run create-admin -- --email you@disha-estate.com --password "..."');
   await conn.end();

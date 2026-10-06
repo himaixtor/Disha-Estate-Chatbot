@@ -23,7 +23,7 @@
     // Disha brand palette, sampled from the marketing site's home page
     // (warm coral accent on a cream ground, deep maroon header/footer).
     // Branding is config, not code — see the module note above to reskin.
-    primaryColor: 'linear-gradient(90deg, #e9161f, #b10e16);',
+    primaryColor: 'linear-gradient(270deg, #e9161f, #b10e16);',
     primaryDark: '#2A0905',
     accentColor: '#EB161F',
     accentHover: '#C93420',
@@ -116,21 +116,32 @@
     .header-avatar { width: 36px; height: 36px; flex: none; border-radius: 50%; background: rgba(255,255,255,.12); color: #fff; display: grid; place-items: center; }
     .header-avatar svg { width: 24px; height: 24px; display: block; }
     .header .title { font-size: 1rem; font-weight: 600; }
-    .header .tag { font-size: .72rem; color: rgba(255,255,255,.72); margin-top: 2px; }
+    .header .tag { font-size: .75rem; font-weight: 700; color: rgba(255, 255, 255, .72); margin-top: 2px; }
     .header-actions { display: flex; align-items: center; gap: 10px; }
-    .close-btn { background: transparent; border: none; color: rgba(255,255,255,.72); cursor: pointer; font-size: 1.25rem; line-height: 1; }
+    .close-btn { width: 32px; height: 32px; display: grid; place-items: center; padding: 0; background: transparent; border: none; color: rgba(255,255,255,.72); cursor: pointer; font-size: 1.6rem; line-height: 1; }
     .close-btn:hover { color: #fff; }
     .body { flex: 1; padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; background: #fff; }
-    .row { display: flex; width: 100%; }
-    .row.bot { justify-content: flex-start; }
-    .row.user { justify-content: flex-end; }
+    .body { scrollbar-color: #D8B7A5 #fff; scrollbar-width: thin; }
+    .body::-webkit-scrollbar { width: 8px; }
+    .body::-webkit-scrollbar-track { background: #fff; }
+    .body::-webkit-scrollbar-thumb { background: #D8B7A5; border: 2px solid #fff; border-radius: 8px; }
+    .body::-webkit-scrollbar-thumb:hover { background: ${config.accentHover}; }
+    .row { display: flex; width: 100%; flex-direction: column; gap: 4px; }
+    .row.bot { align-items: flex-start; }
+    .row.user { align-items: flex-end; }
     .bubble { max-width: 80%; padding: 10px 14px; font-size: .88rem; line-height: 1.4; border-radius: 12px; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
+    .date-separator { align-self: center; color: #8A7B72; background: #F8F3EE; border-radius: 20px; font-size: .68rem; line-height: 1.2; padding: 5px 10px; }
+    .message-time { color: #8A7B72; font-size: .65rem; line-height: 1.2; padding: 0 4px; }
     .row.bot .bubble { background: #F5E9DE; color: #241C18; border-bottom-left-radius: 2px; }
     .row.user .bubble { background: ${config.accentColor}; color: #fff; border-bottom-right-radius: 2px; }
     .bubble a { color: ${config.accentColor}; font-weight: 600; text-decoration: underline; overflow-wrap: anywhere; word-break: break-all; }
     .row.user .bubble a { color: #fff; }
     .options { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
     .chip { background: #fff; border: 1px solid #E8D9C9; color: #241C18; padding: 7px 12px; border-radius: 20px; font-size: .8rem; font-weight: 500; cursor: pointer; }
+    .chip.selected { background: #FDECEA; border-color: ${config.accentColor}; color: ${config.accentColor}; }
+    .chip.continue { background: ${config.accentColor}; border-color: ${config.accentColor}; color: #fff; }
+    .chip.continue:hover { background: ${config.accentHover}; border-color: ${config.accentHover}; color: #fff; }
+    .chip:disabled { cursor: not-allowed; opacity: .5; }
     .otp-actions { display: flex; flex-wrap: wrap; gap: 8px; }
     .otp-actions .chip:disabled { opacity: .55; cursor: not-allowed; border-color: #E8D9C9; color: #8A7B72; background: #fff; }
     .chip.back { color: #6B5A50; border-style: dashed; }
@@ -141,7 +152,12 @@
     .footer select:focus { border-color: ${config.accentColor}; }
     .footer select.hidden { display: none; }
     .footer input { flex: 1; padding: 10px 14px; border: 1px solid #E8D9C9; border-radius: 20px; font-size: .88rem; outline: none; min-width: 0; }
+    .footer input.hidden { display: none; }
     .footer input:focus { border-color: ${config.accentColor}; }
+    .otp-inputs { display: flex; flex: 1; min-width: 0; justify-content: center; gap: 8px; }
+    .otp-inputs.hidden { display: none; }
+    .otp-digit { width: 42px; height: 48px; flex: 1; min-width: 0; max-width: 48px; border: 1px solid #E8D9C9; border-radius: 10px; padding: 0; text-align: center; font-size: 1.1rem; outline: 0; color: #241C18; }
+    .otp-digit:focus { border-color: ${config.accentColor}; box-shadow: 0 0 0 2px rgba(235,22,31,.12); }
     .footer button { background: ${config.accentColor}; color: #fff; border: none; border-radius: 20px; padding: 0 16px; font-size: .88rem; font-weight: 500; cursor: pointer; }
     .footer button:disabled { opacity: .5; cursor: not-allowed; }
     .typing { display: inline-flex; gap: 4px; align-items: center; padding: 8px 12px; }
@@ -175,6 +191,7 @@
         <select id="country" class="hidden" aria-label="Country code">
           ${COUNTRIES.map((c) => `<option value="${c.dial}">${c.label}</option>`).join('')}
         </select>
+        <div class="otp-inputs hidden" id="otpInputs" role="group" aria-label="One-time verification code"></div>
         <input type="text" id="input" placeholder="Type here..." autocomplete="off" />
         <button type="submit" id="sendBtn">Send</button>
       </form>
@@ -191,11 +208,14 @@
         close: this.shadow.getElementById('closeBtn'),
         body: this.shadow.getElementById('body'),
         country: this.shadow.getElementById('country'),
+        otpInputs: this.shadow.getElementById('otpInputs'),
         form: this.shadow.getElementById('form'),
         input: this.shadow.getElementById('input'),
         send: this.shadow.getElementById('sendBtn'),
       };
       this.sessionId = null;
+      this._lastMessageDateKey = null;
+      this._pendingLocationSectorIds = [];
       this.mode = 'text'; // 'text' | 'options' | 'locked'
       this._bind();
     }
@@ -247,6 +267,63 @@
       this.el.input.maxLength = c.len;
       this.el.input.placeholder = `${c.len}-digit mobile number`;
       this._filterInput();
+    }
+
+    _otpValue() {
+      return (this._otpBoxes || []).map((input) => input.value).join('');
+    }
+
+    _setOtpDigits(value) {
+      const digits = String(value || '').replace(/\D/g, '').slice(0, this._otpLength || 4);
+      (this._otpBoxes || []).forEach((input, index) => { input.value = digits[index] || ''; });
+      const focusIndex = Math.min(digits.length, (this._otpBoxes || []).length - 1);
+      this._otpBoxes?.[focusIndex]?.focus();
+    }
+
+    _setupOtpInputs(length) {
+      this._otpLength = length;
+      this.el.otpInputs.replaceChildren();
+      this._otpBoxes = Array.from({ length }, () => document.createElement('input'));
+      this._otpBoxes.forEach((input, index) => {
+        input.type = 'text';
+        input.inputMode = 'numeric';
+        input.autocomplete = index === 0 ? 'one-time-code' : 'off';
+        input.maxLength = length;
+        input.className = 'otp-digit';
+        input.setAttribute('aria-label', `Digit ${index + 1} of ${length}`);
+        input.addEventListener('input', () => {
+          const digits = input.value.replace(/\D/g, '');
+          if (digits.length > 1) {
+            this._setOtpDigits(digits);
+            return;
+          }
+          input.value = digits;
+          if (digits && this._otpBoxes[index + 1]) this._otpBoxes[index + 1].focus();
+        });
+        input.addEventListener('paste', (event) => {
+          const digits = event.clipboardData?.getData('text') || '';
+          if (!/\d/.test(digits)) return;
+          event.preventDefault();
+          this._setOtpDigits(digits);
+        });
+        input.addEventListener('keydown', (event) => {
+          if (event.key === 'Backspace' && !input.value && this._otpBoxes[index - 1]) {
+            this._otpBoxes[index - 1].focus();
+          } else if (event.key === 'ArrowLeft' && this._otpBoxes[index - 1]) {
+            event.preventDefault();
+            this._otpBoxes[index - 1].focus();
+          } else if (event.key === 'ArrowRight' && this._otpBoxes[index + 1]) {
+            event.preventDefault();
+            this._otpBoxes[index + 1].focus();
+          } else if (event.key === 'Enter') {
+            event.preventDefault();
+            this.el.form.requestSubmit();
+          }
+        });
+        this.el.otpInputs.appendChild(input);
+      });
+      this.el.otpInputs.classList.remove('hidden');
+      this._otpBoxes[0]?.focus();
     }
 
     // "Resend OTP" (with a countdown) + "Change number" under the OTP prompt.
@@ -358,13 +435,42 @@
       return json.data;
     }
 
-    _addMessage(text, sender) {
+    _appendMessageTime(row, timestamp = new Date()) {
+      const date = new Date(timestamp);
+      const validDate = Number.isNaN(date.getTime()) ? new Date() : date;
+      const dateKey = `${validDate.getFullYear()}-${validDate.getMonth()}-${validDate.getDate()}`;
+      if (dateKey !== this._lastMessageDateKey) {
+        const today = new Date();
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const localDateKey = (value) => `${value.getFullYear()}-${value.getMonth()}-${value.getDate()}`;
+        const separator = document.createElement('div');
+        separator.className = 'date-separator';
+        separator.textContent = dateKey === localDateKey(today)
+          ? 'Today'
+          : dateKey === localDateKey(yesterday)
+            ? 'Yesterday'
+            : new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(validDate);
+        this.el.body.appendChild(separator);
+        this._lastMessageDateKey = dateKey;
+      }
+      const time = document.createElement('time');
+      time.className = 'message-time';
+      time.dateTime = validDate.toISOString();
+      time.textContent = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+        .format(validDate)
+        .toLowerCase();
+      row.appendChild(time);
+    }
+
+    _addMessage(text, sender, timestamp = new Date()) {
       const row = document.createElement('div');
       row.className = `row ${sender}`;
       const bubble = document.createElement('div');
       bubble.className = 'bubble';
       bubble.textContent = text;
       row.appendChild(bubble);
+      this._appendMessageTime(row, timestamp);
       this.el.body.appendChild(row);
       this.el.body.scrollTop = this.el.body.scrollHeight;
     }
@@ -381,15 +487,22 @@
       link.textContent = label || url;
       bubble.appendChild(link);
       row.appendChild(bubble);
+      this._appendMessageTime(row);
       this.el.body.appendChild(row);
       this.el.body.scrollTop = this.el.body.scrollHeight;
     }
 
     // { withBack: true } appends a "Back" chip that steps the workflow back one
     // step (server-side BACK_MAP) — shown from sub-category selection onwards.
-    _addOptions(options, onSelect, { withBack = false } = {}) {
+    _addOptions(options, onSelect, { withBack = false, multiple = false, selectedIds = [] } = {}) {
       const container = document.createElement('div');
       container.className = 'options';
+      const selected = new Set(selectedIds.map(Number));
+      const choices = options || [];
+      let continueButton = null;
+      const updateContinue = () => {
+        if (continueButton) continueButton.disabled = selected.size === 0;
+      };
       if (withBack) {
         const back = document.createElement('button');
         back.type = 'button';
@@ -403,19 +516,51 @@
         // appended after the real options below
         container._backChip = back;
       }
-      (options || []).forEach((opt) => {
+      choices.forEach((opt) => {
         const chip = document.createElement('button');
         chip.type = 'button';
-        chip.className = 'chip';
+        const isSelected = selected.has(Number(opt.id));
+        chip.className = `chip${multiple && isSelected ? ' selected' : ''}`;
         chip.textContent = opt.label;
-        chip.addEventListener('click', () => {
-          container.remove();
-          this._addMessage(opt.label, 'user');
-          onSelect(opt);
-        });
+        if (multiple) {
+          chip.setAttribute('aria-pressed', String(isSelected));
+          chip.addEventListener('click', () => {
+            if (selected.has(Number(opt.id))) {
+              selected.delete(Number(opt.id));
+              chip.classList.remove('selected');
+              chip.setAttribute('aria-pressed', 'false');
+            } else {
+              selected.add(Number(opt.id));
+              chip.classList.add('selected');
+              chip.setAttribute('aria-pressed', 'true');
+            }
+            updateContinue();
+          });
+        } else {
+          chip.addEventListener('click', () => {
+            container.remove();
+            this._addMessage(opt.label, 'user');
+            onSelect(opt);
+          });
+        }
         container.appendChild(chip);
       });
       if (container._backChip) container.appendChild(container._backChip);
+      if (multiple) {
+        continueButton = document.createElement('button');
+        continueButton.type = 'button';
+        continueButton.className = 'chip continue';
+        continueButton.textContent = 'Continue';
+        continueButton.disabled = selected.size === 0;
+        continueButton.addEventListener('click', () => {
+          if (!selected.size) return;
+          const selectedOptions = choices.filter((option) => selected.has(Number(option.id)));
+          container.remove();
+          this._addMessage(selectedOptions.map((option) => option.label).join(', '), 'user');
+          onSelect(selectedOptions);
+        });
+        container.appendChild(continueButton);
+      }
       this.el.body.appendChild(container);
       this.el.body.scrollTop = this.el.body.scrollHeight;
     }
@@ -434,6 +579,8 @@
       placeholder = 'Type here...', type = 'text', disabled = false, hidden = false,
       filter = null, maxLength = null, inputMode = 'text', autocomplete = 'off', showCountry = false,
     } = {}) {
+      this.el.otpInputs.classList.add('hidden');
+      this.el.input.classList.remove('hidden');
       this.el.country.classList.toggle('hidden', !showCountry);
       this._inputFilter = filter; // null | 'mobile' | 'digits'
       this.el.input.value = '';
@@ -460,7 +607,7 @@
         return false;
       }
       this.sessionId = data.session.sessionId;
-      (data.history || []).forEach((m) => this._addMessage(m.text, m.sender));
+      (data.history || []).forEach((m) => this._addMessage(m.text, m.sender, m.timestamp));
       await this._handleReply({ session: data.session, reply: data.reply || {} }, { silent: true });
       return true;
     }
@@ -480,9 +627,11 @@
 
     async _onSubmit(e) {
       e.preventDefault();
-      const value = this.el.input.value.trim();
+      const isOtp = this._lastKnownState === 'VERIFY_OTP';
+      const value = isOtp ? this._otpValue() : this.el.input.value.trim();
       if (!value || this.mode === 'locked') return;
-      this.el.input.value = '';
+      if (isOtp) this._setOtpDigits('');
+      else this.el.input.value = '';
 
       const state = this._lastKnownState;
       try {
@@ -506,7 +655,7 @@
         } else if (state === 'VERIFY_OTP') {
           const len = this._otpLength || 4;
           if (!new RegExp(`^\\d{${len}}$`).test(value)) {
-            this.el.input.value = value;
+            this._setOtpDigits(value);
             this._addMessage(`Please enter the ${len}-digit code (numbers only).`, 'bot');
             this._keepOtpActionsLast();
             return;
@@ -515,7 +664,12 @@
           await this._handleReply(await this._api(`/chat/session/${this.sessionId}/otp/verify`, { method: 'POST', body: { code: value } }));
         } else if (state === 'LOCATION' || state === 'LOCATION_UNSERVICEABLE') {
           await this._typingDelay(300);
-          await this._handleReply(await this._api(`/chat/session/${this.sessionId}/location`, { method: 'POST', body: { locationText: value } }));
+          const data = await this._api(`/chat/session/${this.sessionId}/location`, {
+            method: 'POST',
+            body: { serviceSectorIds: this._pendingLocationSectorIds, locationText: value },
+          });
+          this._pendingLocationSectorIds = [];
+          await this._handleReply(data);
         }
       } catch (err) {
         this._addMessage(err.message || 'Something went wrong. Please try again.', 'bot');
@@ -547,20 +701,27 @@
         case 'VERIFY_OTP': {
           this._otpLength = data.reply.otpLength || this._otpLength || 4;
           this._setInputMode({ placeholder: `Enter ${this._otpLength}-digit OTP`, type: 'text', filter: 'digits', maxLength: this._otpLength, inputMode: 'numeric', autocomplete: 'one-time-code' });
+          this.el.input.classList.add('hidden');
+          this._setupOtpInputs(this._otpLength);
           this._renderOtpActions(data.reply.resendAfterSeconds === undefined ? 30 : data.reply.resendAfterSeconds);
           break;
         }
         case 'PROPERTY_CATEGORY':
         case 'PROPERTY_SUBCATEGORY':
           this._setInputMode({ hidden: true });
-          this._addOptions(data.reply.options, (opt) => this._selectTaxonomy(data.session.state, opt),
-            { withBack: data.session.state === 'PROPERTY_SUBCATEGORY' });
+          this._addOptions(data.reply.options, (options) => this._selectTaxonomy(data.session.state, options), {
+            withBack: data.session.state === 'PROPERTY_SUBCATEGORY',
+            multiple: true,
+            selectedIds: data.session.state === 'PROPERTY_CATEGORY' ? data.session.categoryIds : data.session.subcategoryIds,
+          });
           break;
         case 'LOCATION':
-          // Chips only until the user picks "Other" — _selectLocation reveals
-          // the text input at that point.
           this._setInputMode({ hidden: true });
-          this._addOptions(data.reply.options, (opt) => this._selectLocation(opt), { withBack: true });
+          this._addOptions(data.reply.options, (options) => this._selectLocation(options), {
+            withBack: true,
+            multiple: true,
+            selectedIds: data.session.serviceSectorIds,
+          });
           break;
         case 'LOCATION_UNSERVICEABLE':
           this._setInputMode({ hidden: true });
@@ -579,25 +740,34 @@
       }
     }
 
-    async _selectTaxonomy(state, opt) {
+    async _selectTaxonomy(state, options) {
       try {
         const path = state === 'PROPERTY_CATEGORY' ? 'category' : 'subcategory';
-        const bodyKey = state === 'PROPERTY_CATEGORY' ? 'categoryId' : 'subcategoryId';
-        await this._handleReply(await this._api(`/chat/session/${this.sessionId}/${path}`, { method: 'POST', body: { [bodyKey]: opt.id } }));
+        const bodyKey = state === 'PROPERTY_CATEGORY' ? 'categoryIds' : 'subcategoryIds';
+        await this._typingDelay(300);
+        await this._handleReply(await this._api(`/chat/session/${this.sessionId}/${path}`, {
+          method: 'POST', body: { [bodyKey]: options.map((option) => option.id) },
+        }));
       } catch (err) {
         this._addMessage(err.message, 'bot');
       }
     }
 
-    async _selectLocation(opt) {
+    async _selectLocation(options) {
       try {
-        if (opt.id === null && opt.label === 'Other') {
-          this._setInputMode({ placeholder: 'Type your locality...' });
+        const selectedOptions = Array.isArray(options) ? options : [options];
+        const serviceSectorIds = selectedOptions.filter((option) => option.id !== null).map((option) => option.id);
+        const otherSelected = selectedOptions.some((option) => option.id === null && option.label === 'Other');
+        if (otherSelected) {
+          this._pendingLocationSectorIds = serviceSectorIds;
+          this._setInputMode({ placeholder: 'Type your preferred locality...' });
           this._addMessage('Please type your preferred locality below.', 'bot');
           return;
         }
         await this._typingDelay(300);
-        await this._handleReply(await this._api(`/chat/session/${this.sessionId}/location`, { method: 'POST', body: { serviceSectorId: opt.id } }));
+        await this._handleReply(await this._api(`/chat/session/${this.sessionId}/location`, {
+          method: 'POST', body: { serviceSectorIds },
+        }));
       } catch (err) {
         this._addMessage(err.message, 'bot');
       }

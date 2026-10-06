@@ -22,6 +22,7 @@ async function updateFields(sessionId, fields) {
   const colMap = {
     name: 'name', email: 'email', mobileNumber: 'mobile_number', chatLanguage: 'chat_language',
     categoryId: 'category_id', subcategoryId: 'subcategory_id', serviceSectorId: 'service_sector_id',
+    categoryIds: 'category_ids', subcategoryIds: 'subcategory_ids', serviceSectorIds: 'service_sector_ids',
     state: 'state', leadGenerated: 'lead_generated', leadStatus: 'lead_status', isFocus: 'is_focus',
     reviewRating: 'review_rating', userUid: 'user_uid', conversationTitle: 'conversation_title',
     deletedByOwner: 'deleted_by_owner', isPinned: 'is_pinned',
@@ -31,7 +32,9 @@ async function updateFields(sessionId, fields) {
   for (const [key, col] of Object.entries(colMap)) {
     if (fields[key] !== undefined) {
       cols.push(`${col} = :${key}`);
-      params[key] = fields[key];
+      params[key] = key === 'categoryIds' || key === 'subcategoryIds' || key === 'serviceSectorIds'
+        ? JSON.stringify(fields[key])
+        : fields[key];
     }
   }
   if (!cols.length) return;

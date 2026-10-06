@@ -13,13 +13,22 @@ const SKIP_BHK = ['general inquiry', 'general enquiry', 'general inquery'];
 // Empty values and the "no preference" choices above are omitted.
 function buildResultParams({ category, subCategory, location }) {
   const params = new URLSearchParams();
-  const propertyType = String(category || '').trim().toLowerCase();
-  const bhk = String(subCategory || '').replace(/\s+/g, '');
-  const localities = String(location || '').trim().toLowerCase();
+  const propertyTypes = (Array.isArray(category) ? category : [category])
+    .map((value) => String(value || '').trim().toLowerCase())
+    .filter((value, index, values) => value && !SKIP_PROPERTY_TYPES.includes(value) && values.indexOf(value) === index);
+  const bhks = (Array.isArray(subCategory) ? subCategory : [subCategory])
+    .map((value) => String(value || '').trim())
+    .filter((value) => value && !SKIP_BHK.includes(value.toLowerCase()))
+    .map((value, index, values) => ({ value: value.replace(/\s+/g, ''), key: value.toLowerCase() }))
+    .filter((value, index, values) => values.findIndex((item) => item.key === value.key) === index)
+    .map((value) => value.value);
+  const localities = (Array.isArray(location) ? location : [location])
+    .map((value) => String(value || '').trim().toLowerCase())
+    .filter((value, index, values) => value && values.indexOf(value) === index);
 
-  if (propertyType && !SKIP_PROPERTY_TYPES.includes(propertyType)) params.set('property_type', propertyType);
-  if (bhk && !SKIP_BHK.includes(String(subCategory).trim().toLowerCase())) params.set('bhk', bhk);
-  if (localities) params.set('localities', localities);
+  if (propertyTypes.length) params.set('property_type', propertyTypes.join(','));
+  if (bhks.length) params.set('bhk', bhks.join(','));
+  if (localities.length) params.set('localities', localities.join(','));
   return params;
 }
 

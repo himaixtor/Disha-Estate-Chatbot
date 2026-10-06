@@ -20,9 +20,14 @@ const createUser = z.object({
   contactNumber: z.string().optional(),
 });
 
-const categoryCreate = z.object({ name: z.string().min(2).max(100), sortOrder: z.number().int().optional() });
+const categoryCreate = z.object({
+  name: z.string().min(2).max(100),
+  parentId: z.number().int().positive().nullable().optional(),
+  sortOrder: z.number().int().optional(),
+});
 const categoryUpdate = z.object({
   name: z.string().min(2).max(100).optional(),
+  parentId: z.number().int().positive().nullable().optional(),
   isActive: z.union([z.boolean(), z.number()]).optional(),
   sortOrder: z.number().int().optional(),
 });
@@ -51,12 +56,23 @@ const chatMobile = z.object({ mobileNumber: z.string().min(10).max(20) });
 // Exact length + digits-only is enforced in otpService.verifyOtp (it owns
 // OTP_LENGTH) so a bad code gets a friendly message instead of a 422.
 const chatOtp = z.object({ code: z.string().min(1).max(10) });
-const chatCategory = z.object({ categoryId: z.number().int() });
-const chatSubcategory = z.object({ subcategoryId: z.number().int() });
+const chatCategory = z.object({
+  categoryId: z.number().int().positive().optional(),
+  categoryIds: z.array(z.number().int().positive()).min(1).max(20).optional(),
+}).refine((body) => body.categoryId !== undefined || body.categoryIds !== undefined);
+const chatSubcategory = z.object({
+  subcategoryId: z.number().int().positive().optional(),
+  subcategoryIds: z.array(z.number().int().positive()).min(1).max(100).optional(),
+}).refine((body) => body.subcategoryId !== undefined || body.subcategoryIds !== undefined);
 const chatLocation = z.object({
-  serviceSectorId: z.number().int().nullable().optional(),
-  locationText: z.string().max(150).nullable().optional(),
-});
+  serviceSectorId: z.number().int().positive().nullable().optional(),
+  serviceSectorIds: z.array(z.number().int().positive()).max(100).optional(),
+  locationText: z.string().trim().max(150).nullable().optional(),
+}).refine((body) => (
+  (body.serviceSectorIds?.length || 0) > 0
+  || body.serviceSectorId != null
+  || Boolean(body.locationText)
+));
 
 const licenseCreate = z.object({
   licenseId: z.string().min(3).max(100),

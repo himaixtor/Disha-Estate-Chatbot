@@ -1,5 +1,6 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import dishaMark from '../assets/disha-mark.svg';
 
 const NAV_ITEMS = [
   { to: '/', label: 'Dashboard', icon: 'grid', permission: 'can_access_dashboard', end: true },
@@ -33,7 +34,7 @@ export default function Layout() {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <div className="brand"><span className="brand-mark">D</span><span>Disha <small>ADMIN</small></span></div>
+        <div className="brand"><img className="brand-mark" src={dishaMark} alt="" /><span>Disha <small>ADMIN</small></span></div>
         <div className="sidebar-label">Workspace</div>
         <nav>
           {visibleItems.map((item) => (

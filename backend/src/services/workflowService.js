@@ -64,6 +64,28 @@ function assertVerified(session) {
   }
 }
 
+function selectedIds(value, fallbackId) {
+  let ids = value;
+  if (typeof ids === 'string') {
+    try { ids = JSON.parse(ids); } catch (_err) { ids = null; }
+  }
+  if (!Array.isArray(ids)) ids = fallbackId == null ? [] : [fallbackId];
+  return [...new Set(ids.map(Number).filter(Number.isInteger))];
+}
+
+async function belongsToSelectedCategory(category, selectedCategoryIds) {
+  let current = category;
+  const visited = new Set();
+  while (current?.parent_id != null) {
+    const parentId = Number(current.parent_id);
+    if (selectedCategoryIds.includes(parentId)) return true;
+    if (visited.has(parentId)) return false;
+    visited.add(parentId);
+    current = await categoriesRepo.findById(parentId);
+  }
+  return false;
+}
+
 // Extra data the widget needs while waiting for an OTP.
 function otpReplyMeta() {
   return { otpLength: otpService.OTP_LENGTH, resendAfterSeconds: otpService.OTP_RESEND_COOLDOWN_SECONDS };
@@ -128,11 +150,18 @@ async function currentPrompt(session) {
     case STATES.NO_MATCH:
       return { ...none, options: [{ id: 'retry', label: 'Adjust preferences' }] };
     case STATES.SHOW_RESULTS: {
-      const category = session.category_id ? await categoriesRepo.findById(session.category_id) : null;
-      const subcategory = session.subcategory_id ? await subcategoriesRepo.findById(session.subcategory_id) : null;
-      const sector = (await serviceSectorsRepo.listActive()).find((s) => s.id === session.service_sector_id);
+      const categoryIds = selectedIds(session.category_ids, session.category_id);
+      const subcategoryIds = selectedIds(session.subcategory_ids, session.subcategory_id);
+      const sectorIds = selectedIds(session.service_sector_ids, session.service_sector_id);
+      const categories = await Promise.all(categoryIds.map((id) => categoriesRepo.findById(id)));
+      const subcategories = await Promise.all(subcategoryIds.map((id) => subcategoriesRepo.findById(id)));
+      const sectors = (await serviceSectorsRepo.listActive()).filter((sector) => sectorIds.includes(sector.id));
       const result = registry.inventory
-        ? await registry.inventory.findMatches({ category: category?.name, subCategory: subcategory?.name, location: sector?.sector_name })
+        ? await registry.inventory.findMatches({
+          category: categories.filter(Boolean).map((category) => category.name),
+          subCategory: subcategories.filter(Boolean).map((subcategory) => subcategory.name),
+          location: sectors.map((sector) => sector.sector_name),
+        })
         : {};
       return { ...none, options: [{ id: 'open', label: 'Open Results' }, { id: 'link', label: 'Get Link' }], resultUrl: result.resultUrl };
     }
@@ -286,40 +315,63 @@ async function verifyOtp(sessionId, code) {
   };
 }
 
-async function selectCategory(sessionId, categoryId) {
+async function selectCategory(sessionId, rawCategoryIds) {
   const session = await sessionsRepo.findById(sessionId);
   if (!session) throw new ApiError(404, 'SESSION_NOT_FOUND', 'This chat session no longer exists.');
   assertState(session, STATES.PROPERTY_CATEGORY, STATES.NO_MATCH);
   assertVerified(session);
 
-  const category = await categoriesRepo.findById(categoryId);
-  if (!category || !category.is_active) throw new ApiError(400, 'INVALID_CATEGORY', 'Please pick one of the listed options.');
+  const categoryIds = selectedIds(rawCategoryIds);
+  if (!categoryIds.length) throw new ApiError(400, 'INVALID_CATEGORY', 'Please pick at least one of the listed options.');
+  const categories = await Promise.all(categoryIds.map((id) => categoriesRepo.findById(id)));
+  if (categories.some((category) => !category || !category.is_active)) {
+    throw new ApiError(400, 'INVALID_CATEGORY', 'Please pick from the listed options.');
+  }
 
-  await messagesRepo.add({ sessionId, responseType: 'user', messageText: category.name });
-  await sessionsRepo.updateFields(sessionId, { categoryId, subcategoryId: null, state: STATES.PROPERTY_SUBCATEGORY });
+  await messagesRepo.add({ sessionId, responseType: 'user', messageText: categories.map((category) => category.name).join(', ') });
+  await sessionsRepo.updateFields(sessionId, {
+    categoryId: categoryIds[0], categoryIds, subcategoryId: null, subcategoryIds: [], state: STATES.PROPERTY_SUBCATEGORY,
+  });
 
-  const subcategories = await subcategoriesRepo.listActiveByCategory(categoryId);
-  const text = `Please select a ${category.name} option:`;
+  const subcategories = (await Promise.all(categoryIds.map((id) => subcategoriesRepo.listActiveLeafOptionsByCategory(id))))
+    .flat()
+    .filter((subcategory, index, all) => all.findIndex((item) => item.id === subcategory.id) === index);
+  const text = categoryIds.length === 1
+    ? `Please select a ${categories[0].name} option:`
+    : 'Please select one or more property options:';
   await messagesRepo.add({ sessionId, responseType: 'bot', messageText: text });
   return {
     session: await reload(sessionId),
-    reply: { text, options: subcategories.map((s) => ({ id: s.id, label: s.name })) },
+    reply: {
+      text,
+      options: subcategories.map((subcategory) => ({
+        id: subcategory.id,
+        label: categoryIds.length > 1 ? `${categories.find((category) => category.id === subcategory.root_category_id)?.name}: ${subcategory.path}` : subcategory.path,
+        categoryId: subcategory.root_category_id,
+      })),
+    },
   };
 }
 
-async function selectSubcategory(sessionId, subcategoryId) {
+async function selectSubcategory(sessionId, rawSubcategoryIds) {
   const session = await sessionsRepo.findById(sessionId);
   if (!session) throw new ApiError(404, 'SESSION_NOT_FOUND', 'This chat session no longer exists.');
   assertState(session, STATES.PROPERTY_SUBCATEGORY);
   assertVerified(session);
 
-  const subcategory = await subcategoriesRepo.findById(subcategoryId);
-  if (!subcategory || !subcategory.is_active || subcategory.category_id !== session.category_id) {
-    throw new ApiError(400, 'INVALID_SUBCATEGORY', 'Please pick one of the listed options.');
+  const categoryIds = selectedIds(session.category_ids, session.category_id);
+  const subcategoryIds = selectedIds(rawSubcategoryIds);
+  if (!subcategoryIds.length) throw new ApiError(400, 'INVALID_SUBCATEGORY', 'Please pick at least one of the listed options.');
+  const subcategories = await Promise.all(subcategoryIds.map((id) => subcategoriesRepo.findById(id)));
+  const validParents = await Promise.all(subcategories.map((subcategory) => (
+    subcategory ? belongsToSelectedCategory(subcategory, categoryIds) : false
+  )));
+  if (subcategories.some((subcategory, index) => !subcategory || !subcategory.is_active || !validParents[index])) {
+    throw new ApiError(400, 'INVALID_SUBCATEGORY', 'Please pick from the listed options.');
   }
 
-  await messagesRepo.add({ sessionId, responseType: 'user', messageText: subcategory.name });
-  await sessionsRepo.updateFields(sessionId, { subcategoryId, state: STATES.LOCATION });
+  await messagesRepo.add({ sessionId, responseType: 'user', messageText: subcategories.map((subcategory) => subcategory.name).join(', ') });
+  await sessionsRepo.updateFields(sessionId, { subcategoryId: subcategoryIds[0], subcategoryIds, state: STATES.LOCATION });
 
   const text = 'Which preferred location or locality are you targeting?';
   await messagesRepo.add({ sessionId, responseType: 'bot', messageText: text });
@@ -330,34 +382,48 @@ async function selectSubcategory(sessionId, subcategoryId) {
   };
 }
 
-async function submitLocation(sessionId, { serviceSectorId, locationText }) {
+async function submitLocation(sessionId, { serviceSectorIds = [], locationText }) {
   const session = await sessionsRepo.findById(sessionId);
   if (!session) throw new ApiError(404, 'SESSION_NOT_FOUND', 'This chat session no longer exists.');
   assertState(session, STATES.LOCATION, STATES.LOCATION_UNSERVICEABLE);
   assertVerified(session);
 
+  const sectorIds = selectedIds(serviceSectorIds);
+  if (!sectorIds.length && !locationText?.trim()) {
+    throw new ApiError(400, 'INVALID_LOCATION', 'Please select at least one location or enter a locality.');
+  }
+
   await sessionsRepo.updateFields(sessionId, { state: STATES.VALIDATE_LOCATION });
 
+  const activeSectors = await serviceSectorsRepo.listActive();
+  const selectedSectors = activeSectors.filter((sector) => sectorIds.includes(sector.id));
+  if (selectedSectors.length !== sectorIds.length) {
+    throw new ApiError(400, 'INVALID_LOCATION', 'Please select from the listed locations.');
+  }
+
   let matchedSector = null;
-  if (serviceSectorId) {
-    const sectors = await serviceSectorsRepo.listActive();
-    matchedSector = sectors.find((s) => s.id === serviceSectorId) || null;
-  } else if (locationText) {
+  if (locationText?.trim()) {
     await messagesRepo.add({ sessionId, responseType: 'user', messageText: locationText });
     matchedSector = await serviceSectorsRepo.findByNameOrAreaCode(locationText.trim());
+    if (!matchedSector) {
+      await sessionsRepo.updateFields(sessionId, { state: STATES.LOCATION_UNSERVICEABLE, serviceSectorId: sectorIds[0] || null, serviceSectorIds: sectorIds });
+      const text = `We are not providing service at this moment in your preferred area ${locationText.trim()}. Hope we will start serving soon.`;
+      await messagesRepo.add({ sessionId, responseType: 'bot', messageText: text });
+      return { session: await reload(sessionId), reply: { text, options: [{ id: 'retry', label: 'Try another area' }] } };
+    }
   }
 
-  if (!matchedSector) {
-    await sessionsRepo.updateFields(sessionId, { state: STATES.LOCATION_UNSERVICEABLE, serviceSectorId: null });
-    const text = `We are not providing service at this moment in your preferred area ${locationText || ''}. Hope we will start serving soon.`;
-    await messagesRepo.add({ sessionId, responseType: 'bot', messageText: text });
-    return { session: await reload(sessionId), reply: { text, options: [{ id: 'retry', label: 'Try another area' }] } };
+  if (matchedSector && !sectorIds.includes(matchedSector.id)) {
+    sectorIds.push(matchedSector.id);
+    selectedSectors.push(matchedSector);
   }
-
-  if (!locationText) {
-    await messagesRepo.add({ sessionId, responseType: 'user', messageText: matchedSector.sector_name });
+  const selectedLocationNames = selectedSectors.map((sector) => sector.sector_name);
+  if (!locationText?.trim()) {
+    await messagesRepo.add({ sessionId, responseType: 'user', messageText: selectedLocationNames.join(', ') });
   }
-  await sessionsRepo.updateFields(sessionId, { serviceSectorId: matchedSector.id, state: STATES.MATCHING_INVENTORY });
+  await sessionsRepo.updateFields(sessionId, {
+    serviceSectorId: sectorIds[0], serviceSectorIds: sectorIds, state: STATES.MATCHING_INVENTORY,
+  });
 
   const text = 'Matching inventory based on your preferences...';
   await messagesRepo.add({ sessionId, responseType: 'bot', messageText: text });
@@ -373,15 +439,18 @@ async function matchInventory(sessionId) {
     throw new ApiError(503, 'MODULE_DISABLED', 'Property inventory matching is not enabled.');
   }
 
-  const category = session.category_id ? await categoriesRepo.findById(session.category_id) : null;
-  const subcategory = session.subcategory_id ? await subcategoriesRepo.findById(session.subcategory_id) : null;
+  const categoryIds = selectedIds(session.category_ids, session.category_id);
+  const subcategoryIds = selectedIds(session.subcategory_ids, session.subcategory_id);
+  const sectorIds = selectedIds(session.service_sector_ids, session.service_sector_id);
+  const categories = await Promise.all(categoryIds.map((id) => categoriesRepo.findById(id)));
+  const subcategories = await Promise.all(subcategoryIds.map((id) => subcategoriesRepo.findById(id)));
   const sectors = await serviceSectorsRepo.listActive();
-  const sector = sectors.find((s) => s.id === session.service_sector_id);
+  const selectedSectors = sectors.filter((sector) => sectorIds.includes(sector.id));
 
   const result = await registry.inventory.findMatches({
-    category: category?.name,
-    subCategory: subcategory?.name,
-    location: sector?.sector_name,
+    category: categories.filter(Boolean).map((category) => category.name),
+    subCategory: subcategories.filter(Boolean).map((subcategory) => subcategory.name),
+    location: selectedSectors.map((sector) => sector.sector_name),
   });
 
   if (!result.matched) {
@@ -426,8 +495,23 @@ async function reenterState(sessionId, state) {
       return { session, reply: { text: 'What type of property are you looking for?', options: categories.map((c) => ({ id: c.id, label: c.name })) } };
     }
     case STATES.PROPERTY_SUBCATEGORY: {
-      const subcategories = await subcategoriesRepo.listActiveByCategory(session.category_id);
-      return { session, reply: { text: 'Please pick an option:', options: subcategories.map((s) => ({ id: s.id, label: s.name })) } };
+      const categoryIds = selectedIds(session.category_ids, session.category_id);
+      const categories = await Promise.all(categoryIds.map((id) => categoriesRepo.findById(id)));
+      const subcategories = (await Promise.all(categoryIds.map((id) => subcategoriesRepo.listActiveLeafOptionsByCategory(id))))
+        .flat()
+        .filter((subcategory, index, all) => all.findIndex((item) => item.id === subcategory.id) === index);
+      const text = categoryIds.length > 1 ? 'Please select one or more property options:' : 'Please pick an option:';
+      return {
+        session,
+        reply: {
+          text,
+          options: subcategories.map((subcategory) => ({
+            id: subcategory.id,
+            label: categoryIds.length > 1 ? `${categories.find((category) => category?.id === subcategory.root_category_id)?.name}: ${subcategory.path}` : subcategory.path,
+            categoryId: subcategory.root_category_id,
+          })),
+        },
+      };
     }
     case STATES.LOCATION: {
       const sectors = await serviceSectorsRepo.listActive();
@@ -448,7 +532,8 @@ async function mainMenu(sessionId) {
   assertVerified(session);
 
   await sessionsRepo.updateFields(sessionId, {
-    categoryId: null, subcategoryId: null, serviceSectorId: null, state: STATES.PROPERTY_CATEGORY,
+    categoryId: null, categoryIds: [], subcategoryId: null, subcategoryIds: [],
+    serviceSectorId: null, serviceSectorIds: [], state: STATES.PROPERTY_CATEGORY,
   });
   await messagesRepo.add({ sessionId, responseType: 'user', messageText: 'Back to main menu' });
   return reenterState(sessionId, STATES.PROPERTY_CATEGORY);

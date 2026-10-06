@@ -6,7 +6,9 @@ export default function CategoriesPage() {
   const [categories, setCategories] = useState([]);
   const [subcategories, setSubcategories] = useState([]);
   const [error, setError] = useState(null);
-  const [expanded, setExpanded] = useState(null);
+  const [syncMessage, setSyncMessage] = useState(null);
+  const [syncing, setSyncing] = useState(false);
+  const [expanded, setExpanded] = useState(() => new Set());
   const [catModal, setCatModal] = useState(null); // { mode: 'new'|'edit', data }
   const [subModal, setSubModal] = useState(null); // { mode, categoryId, data }
 
@@ -48,70 +50,88 @@ export default function CategoriesPage() {
     load();
   }
 
+  function toggleExpanded(id) {
+    setExpanded((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  const childrenByParent = new Map();
+  subcategories.forEach((category) => {
+    const parentId = Number(category.parent_id);
+    if (!childrenByParent.has(parentId)) childrenByParent.set(parentId, []);
+    childrenByParent.get(parentId).push(category);
+  });
+
+  function renderCategoryRow(category, depth = 0) {
+    const children = childrenByParent.get(Number(category.id)) || [];
+    const isOpen = expanded.has(category.id);
+    const isChild = category.parent_id !== null;
+    return (
+      <Fragment key={category.id}>
+        <tr>
+          <td style={{ paddingLeft: 10 + depth * 22 }}>{depth > 0 ? '↳ ' : ''}{category.name}</td>
+          <td><span className={`badge ${category.is_active ? 'active' : 'inactive'}`}>{category.is_active ? 'active' : 'inactive'}</span></td>
+          <td>{category.sort_order}</td>
+          <td>
+            {children.length > 0
+              ? <button className="btn" onClick={() => toggleExpanded(category.id)}>{children.length} — {isOpen ? 'hide' : 'show'}</button>
+              : <span>—</span>}
+          </td>
+          <td style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            <button className="btn" onClick={() => (isChild
+              ? setSubModal({ mode: 'edit', categoryId: category.parent_id, data: category })
+              : setCatModal({ mode: 'edit', data: category }))}>Edit</button>
+            <button className="btn" onClick={() => setSubModal({ mode: 'new', categoryId: category.id, data: { name: '', sortOrder: 0 } })}>Add child</button>
+            <button className="btn danger" onClick={() => (isChild ? toggleSubActive(category) : toggleCategoryActive(category))}>
+              {category.is_active ? 'Deactivate' : 'Activate'}
+            </button>
+          </td>
+        </tr>
+        {isOpen && children.map((child) => renderCategoryRow(child, depth + 1))}
+      </Fragment>
+    );
+  }
+
+  async function syncFromCms() {
+    setSyncing(true);
+    setError(null);
+    setSyncMessage(null);
+    try {
+      const result = await api.post('/categories/sync', {});
+      setSyncMessage(`Synced ${result.categoriesSynced} property types, ${result.subcategoriesSynced} child categories, and ${result.locationsSynced} locations.`);
+      load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   return (
     <>
       <div className="page-header">
         <h1>Categories</h1>
-        <button className="btn primary" onClick={() => setCatModal({ mode: 'new', data: { name: '', sortOrder: 0 } })}>+ New category</button>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <button className="btn" onClick={syncFromCms} disabled={syncing}>
+            {syncing ? 'Syncing…' : 'Sync from CMS'}
+          </button>
+          <button className="btn primary" onClick={() => setCatModal({ mode: 'new', data: { name: '', sortOrder: 0 } })}>+ New category</button>
+        </div>
       </div>
 
       {error && <div className="error-text">{error}</div>}
+      {syncMessage && <div className="status-pill" role="status"><span />{syncMessage}</div>}
 
       <div className="card">
         {categories.length === 0 ? <div className="empty-state">No categories yet.</div> : (
           <table>
-            <thead><tr><th>Name</th><th>Status</th><th>Sort</th><th>Subcategories</th><th></th></tr></thead>
+            <thead><tr><th>Name</th><th>Status</th><th>Sort</th><th>Child categories</th><th></th></tr></thead>
             <tbody>
-              {categories.map((cat) => {
-                const subs = subcategories.filter((s) => s.category_id === cat.id);
-                const isOpen = expanded === cat.id;
-                return (
-                  <Fragment key={cat.id}>
-                    <tr>
-                      <td>{cat.name}</td>
-                      <td><span className={`badge ${cat.is_active ? 'active' : 'inactive'}`}>{cat.is_active ? 'active' : 'inactive'}</span></td>
-                      <td>{cat.sort_order}</td>
-                      <td>
-                        <button className="btn" onClick={() => setExpanded(isOpen ? null : cat.id)}>{subs.length} — {isOpen ? 'hide' : 'show'}</button>
-                      </td>
-                      <td style={{ display: 'flex', gap: 6 }}>
-                        <button className="btn" onClick={() => setCatModal({ mode: 'edit', data: cat })}>Edit</button>
-                        <button className="btn danger" onClick={() => toggleCategoryActive(cat)}>{cat.is_active ? 'Deactivate' : 'Activate'}</button>
-                      </td>
-                    </tr>
-                    {isOpen && (
-                      <tr key={`${cat.id}-subs`}>
-                        <td colSpan={5} style={{ background: '#f8fafc' }}>
-                          <div style={{ padding: '8px 4px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                              <strong style={{ fontSize: '.8rem' }}>Subcategories</strong>
-                              <button className="btn" onClick={() => setSubModal({ mode: 'new', categoryId: cat.id, data: { name: '', sortOrder: 0 } })}>+ Add subcategory</button>
-                            </div>
-                            {subs.length === 0 ? <div className="empty-state">None yet.</div> : (
-                              <table>
-                                <thead><tr><th>Name</th><th>Status</th><th>Sort</th><th></th></tr></thead>
-                                <tbody>
-                                  {subs.map((sub) => (
-                                    <tr key={sub.id}>
-                                      <td>{sub.name}</td>
-                                      <td><span className={`badge ${sub.is_active ? 'active' : 'inactive'}`}>{sub.is_active ? 'active' : 'inactive'}</span></td>
-                                      <td>{sub.sort_order}</td>
-                                      <td style={{ display: 'flex', gap: 6 }}>
-                                        <button className="btn" onClick={() => setSubModal({ mode: 'edit', categoryId: cat.id, data: sub })}>Edit</button>
-                                        <button className="btn danger" onClick={() => toggleSubActive(sub)}>{sub.is_active ? 'Deactivate' : 'Activate'}</button>
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                );
-              })}
+              {categories.map((category) => renderCategoryRow(category))}
             </tbody>
           </table>
         )}
@@ -124,7 +144,7 @@ export default function CategoriesPage() {
       )}
 
       {subModal && (
-        <Modal title={subModal.mode === 'new' ? 'New subcategory' : 'Edit subcategory'} onClose={() => setSubModal(null)}>
+        <Modal title={subModal.mode === 'new' ? 'New child category' : 'Edit child category'} onClose={() => setSubModal(null)}>
           <NameSortForm initial={subModal.data} onSubmit={saveSubcategory} onCancel={() => setSubModal(null)} />
         </Modal>
       )}

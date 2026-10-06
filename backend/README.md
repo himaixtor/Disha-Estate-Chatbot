@@ -13,14 +13,22 @@ fixed "coming soon" message until the `ai` module is enabled.
 ```bash
 cp .env.example .env      # then fill in DB_USER / DB_PASSWORD for your MySQL
 npm install
-npm run migrate            # creates all 16 tables in the disha-chatbot database
-npm run seed                # roles, categories/subcategories, sample service sectors
+npm run migrate            # creates the schema in the disha-chatbot database
+npm run seed                # roles, category hierarchy, sample service sectors
 npm run create-admin -- --email you@disha-estate.com --password "SomethingStrong123" --name "Your Name"
 npm run dev                 # http://localhost:5002
 ```
 
 `GET /api/v1/health` works even before you've set up the database — it reports
 `degraded` instead of crashing so you can confirm the server itself is up.
+
+To enable **Sync from CMS** on the Categories page, set `CMS_FILTERS_API_KEY`
+in `backend/.env`. The backend uses this key to call the Disha filters API;
+it is never sent to the browser. `CMS_FILTERS_API_URL` can override the default
+endpoint if needed. Sync imports leaf locations, project types, and each
+project type's direct children; existing matching rows are reactivated and
+updated, and CMS-sourced rows removed upstream are deactivated without
+deleting locally managed data or historical records.
 
 The first time the `super_admin` account (created above) signs in to the
 Admin Portal, it will be forced onto a **License Setup** screen instead of

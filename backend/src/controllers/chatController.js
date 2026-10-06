@@ -3,6 +3,15 @@ const messagesRepo = require('../db/repositories/messagesRepo');
 const { ok } = require('../utils/apiResponse');
 const asyncHandler = require('../utils/asyncHandler');
 
+function serializeIds(value, fallbackId) {
+  let ids = value;
+  if (typeof ids === 'string') {
+    try { ids = JSON.parse(ids); } catch (_err) { ids = null; }
+  }
+  if (!Array.isArray(ids)) ids = fallbackId == null ? [] : [fallbackId];
+  return [...new Set(ids.map(Number).filter(Number.isInteger))];
+}
+
 function serializeSession(session) {
   return {
     sessionId: session.session_id,
@@ -10,8 +19,11 @@ function serializeSession(session) {
     name: session.name,
     mobileNumber: session.mobile_number,
     categoryId: session.category_id,
+    categoryIds: serializeIds(session.category_ids, session.category_id),
     subcategoryId: session.subcategory_id,
+    subcategoryIds: serializeIds(session.subcategory_ids, session.subcategory_id),
     serviceSectorId: session.service_sector_id,
+    serviceSectorIds: serializeIds(session.service_sector_ids, session.service_sector_id),
     leadStatus: session.lead_status,
   };
 }
@@ -28,7 +40,7 @@ const getSession = asyncHandler(async (req, res) => {
     // Only what the widget needs to redraw the conversation.
     history: history
       .filter((m) => m.response_type === 'user' || m.response_type === 'bot')
-      .map((m) => ({ sender: m.response_type, text: m.message_text })),
+      .map((m) => ({ sender: m.response_type, text: m.message_text, timestamp: m.timestamp })),
     reply,
   });
 });
@@ -59,18 +71,20 @@ const changeMobile = asyncHandler(async (req, res) => {
 });
 
 const selectCategory = asyncHandler(async (req, res) => {
-  const { session, reply } = await workflow.selectCategory(req.params.id, req.body.categoryId);
+  const categoryIds = req.body.categoryIds || [req.body.categoryId];
+  const { session, reply } = await workflow.selectCategory(req.params.id, categoryIds);
   ok(res, { session: serializeSession(session), reply });
 });
 
 const selectSubcategory = asyncHandler(async (req, res) => {
-  const { session, reply } = await workflow.selectSubcategory(req.params.id, req.body.subcategoryId);
+  const subcategoryIds = req.body.subcategoryIds || [req.body.subcategoryId];
+  const { session, reply } = await workflow.selectSubcategory(req.params.id, subcategoryIds);
   ok(res, { session: serializeSession(session), reply });
 });
 
 const submitLocation = asyncHandler(async (req, res) => {
   const { session, reply } = await workflow.submitLocation(req.params.id, {
-    serviceSectorId: req.body.serviceSectorId || null,
+    serviceSectorIds: req.body.serviceSectorIds || (req.body.serviceSectorId == null ? [] : [req.body.serviceSectorId]),
     locationText: req.body.locationText || null,
   });
   ok(res, { session: serializeSession(session), reply });

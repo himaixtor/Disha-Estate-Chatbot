@@ -45,10 +45,9 @@ INSERT IGNORE INTO categories (id, name, is_active, sort_order) VALUES
   (3, 'Investment',  1, 3),
   (4, 'Other',       1, 4);
 
--- ---------- Subcategories ----------
--- Residential, Commercial and Investment sets adopted from Chatbotprototype.html
--- (blueprint Issue G21 — more complete than the original brief's BHK-only example).
-INSERT IGNORE INTO subcategories (category_id, name, is_active, sort_order) VALUES
+-- ---------- Child categories ----------
+-- Residential, Commercial and Investment sets adopted from Chatbotprototype.html.
+INSERT IGNORE INTO categories (parent_id, name, is_active, sort_order) VALUES
   (1, '2 BHK', 1, 1),
   (1, '3 BHK', 1, 2),
   (1, '4 BHK', 1, 3),
