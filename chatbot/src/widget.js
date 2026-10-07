@@ -129,9 +129,9 @@
     .row { display: flex; width: 100%; flex-direction: column; gap: 4px; }
     .row.bot { align-items: flex-start; }
     .row.user { align-items: flex-end; }
-    .bubble { position: relative; max-width: 80%; padding: 10px 14px 24px; font-size: .88rem; line-height: 1.4; border-radius: 12px; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
+    .bubble { position: relative; max-width: 80%; min-width: 84px; padding: 10px 14px 24px; font-size: .88rem; line-height: 1.4; border-radius: 12px; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
     .date-separator { align-self: center; color: #8A7B72; background: #F8F3EE; border-radius: 20px; font-size: .68rem; line-height: 1.2; padding: 5px 10px; }
-    .message-time { position: absolute; right: 10px; bottom: 6px; color: #8A7B72; font-size: .65rem; line-height: 1.2; }
+    .message-time { position: absolute; right: 10px; bottom: 6px; white-space: nowrap; color: #8A7B72; font-size: .65rem; line-height: 1.2; }
     .row.user .message-time { color: rgba(255,255,255,.75); }
     .row.bot .bubble { background: #F5E9DE; color: #241C18; border-bottom-left-radius: 2px; }
     .row.user .bubble { background: ${config.accentColor}; color: #fff; border-bottom-right-radius: 2px; }
