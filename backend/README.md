@@ -25,10 +25,17 @@ npm run dev                 # http://localhost:5002
 To enable **Sync from CMS** on the Categories page, set `CMS_FILTERS_API_KEY`
 in `backend/.env`. The backend uses this key to call the Disha filters API;
 it is never sent to the browser. `CMS_FILTERS_API_URL` can override the default
-endpoint if needed. Sync imports leaf locations, project types, and each
+endpoint if needed. The Property Configuration page also reads the
+`configurations` array from this API and adds the matching root category ID
+based on each item's dynamic `type`. Sync imports leaf locations, project types, and each
 project type's direct children; existing matching rows are reactivated and
 updated, and CMS-sourced rows removed upstream are deactivated without
 deleting locally managed data or historical records.
+
+The verified chat flow now asks for property type, property option, matching
+configuration, and location. Configuration names are sent as `bhk`, while
+property-option CMS slugs are sent as `category` in the results URL. Run
+`npm run migrate` after deploying this flow to add its session fields and state.
 
 The first time the `super_admin` account (created above) signs in to the
 Admin Portal, it will be forced onto a **License Setup** screen instead of

@@ -15,6 +15,7 @@ router.post('/session/:id/otp/resend', otpLimiter, ctrl.resendOtp);
 router.post('/session/:id/mobile/change', ctrl.changeMobile);
 router.post('/session/:id/category', validateBody(schemas.chatCategory), ctrl.selectCategory);
 router.post('/session/:id/subcategory', validateBody(schemas.chatSubcategory), ctrl.selectSubcategory);
+router.post('/session/:id/configuration', validateBody(schemas.chatConfiguration), ctrl.selectConfiguration);
 router.post('/session/:id/location', validateBody(schemas.chatLocation), ctrl.submitLocation);
 router.post('/session/:id/back', ctrl.goBack);
 router.post('/session/:id/main-menu', ctrl.mainMenu);

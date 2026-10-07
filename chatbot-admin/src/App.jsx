@@ -6,6 +6,7 @@ import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import LeadsPage from './pages/LeadsPage';
 import CategoriesPage from './pages/CategoriesPage';
+import PropertyConfigurationsPage from './pages/PropertyConfigurationsPage';
 import ServiceSectorsPage from './pages/ServiceSectorsPage';
 import UsersPage from './pages/UsersPage';
 import LicensesPage from './pages/LicensesPage';
@@ -22,6 +23,7 @@ export default function App() {
               <Route index element={<DashboardPage />} />
               <Route path="/leads" element={<LeadsPage />} />
               <Route path="/categories" element={<CategoriesPage />} />
+              <Route path="/property-configurations" element={<PropertyConfigurationsPage />} />
               <Route path="/service-sectors" element={<ServiceSectorsPage />} />
               <Route path="/users" element={<UsersPage />} />
               <Route path="/licenses" element={<LicensesPage />} />

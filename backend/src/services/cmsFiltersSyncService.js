@@ -1,5 +1,6 @@
 const { pool } = require('../config/db');
 const env = require('../config/env');
+const categoriesRepo = require('../db/repositories/categoriesRepo');
 const { ApiError } = require('../utils/apiResponse');
 
 function unwrapFilters(payload) {
@@ -9,6 +10,32 @@ function unwrapFilters(payload) {
     current = current?.data || current?.filters || current?.result;
   }
   throw new ApiError(502, 'INVALID_CMS_FILTERS', 'The CMS filters response is missing locations or project types.');
+}
+
+function unwrapConfigurations(payload) {
+  let current = payload;
+  for (let depth = 0; depth < 4; depth += 1) {
+    if (Array.isArray(current?.configurations)) return current.configurations;
+    current = current?.data || current?.filters || current?.result;
+  }
+  throw new ApiError(502, 'INVALID_CMS_FILTERS', 'The CMS filters response is missing configurations.');
+}
+
+function addRootCategoryIds(configurations, categories) {
+  const categoryIdsByType = new Map();
+  for (const category of categories) {
+    for (const value of [category.cms_slug, category.name]) {
+      const key = String(value || '').trim().toLowerCase();
+      if (key && !categoryIdsByType.has(key)) categoryIdsByType.set(key, Number(category.id));
+    }
+  }
+  return configurations.map((configuration) => {
+    if (!configuration || typeof configuration !== 'object' || Array.isArray(configuration)) {
+      throw new ApiError(502, 'INVALID_CMS_FILTERS', 'The CMS configurations response contains an invalid item.');
+    }
+    const type = String(configuration.type || '').trim().toLowerCase();
+    return { ...configuration, category_id: categoryIdsByType.get(type) || null };
+  });
 }
 
 function namedItems(items) {
@@ -118,7 +145,7 @@ async function upsertLocation(conn, item) {
   );
 }
 
-async function syncCmsFilters() {
+async function fetchCmsFiltersPayload() {
   if (!env.cmsFilters.apiKey) {
     throw new ApiError(503, 'CMS_SYNC_NOT_CONFIGURED', 'Set CMS_FILTERS_API_KEY in the backend environment before syncing.');
   }
@@ -136,13 +163,20 @@ async function syncCmsFilters() {
     throw new ApiError(502, 'CMS_REQUEST_FAILED', `The CMS filters API returned HTTP ${response.status}.`);
   }
 
-  let filters;
   try {
-    filters = unwrapFilters(await response.json());
-  } catch (err) {
-    if (err instanceof ApiError) throw err;
+    return await response.json();
+  } catch (_err) {
     throw new ApiError(502, 'INVALID_CMS_FILTERS', 'The CMS filters API returned invalid JSON.');
   }
+}
+
+async function getCmsPropertyConfigurations() {
+  const payload = await fetchCmsFiltersPayload();
+  return addRootCategoryIds(unwrapConfigurations(payload), await categoriesRepo.listAll());
+}
+
+async function syncCmsFilters() {
+  const filters = unwrapFilters(await fetchCmsFiltersPayload());
 
   const projectTypes = categoryTree(filters.property_types);
   const locations = locationLeaves(filters.locations);
@@ -176,4 +210,13 @@ async function syncCmsFilters() {
   };
 }
 
-module.exports = { syncCmsFilters, unwrapFilters, locationLeaves, categoryTree, syncChildCategories };
+module.exports = {
+  syncCmsFilters,
+  getCmsPropertyConfigurations,
+  unwrapFilters,
+  unwrapConfigurations,
+  addRootCategoryIds,
+  locationLeaves,
+  categoryTree,
+  syncChildCategories,
+};

@@ -4,6 +4,7 @@ const messagesRepo = require('../db/repositories/messagesRepo');
 const categoriesRepo = require('../db/repositories/categoriesRepo');
 const subcategoriesRepo = require('../db/repositories/subcategoriesRepo');
 const serviceSectorsRepo = require('../db/repositories/serviceSectorsRepo');
+const { getCmsPropertyConfigurations } = require('./cmsFiltersSyncService');
 const { isValidName, NAME_MAX_LENGTH } = require('./nameValidationService');
 const { normalizeMobile } = require('./mobileService');
 const otpService = require('./otpService');
@@ -23,6 +24,7 @@ const STATES = Object.freeze({
   VERIFY_OTP: 'VERIFY_OTP',
   PROPERTY_CATEGORY: 'PROPERTY_CATEGORY',
   PROPERTY_SUBCATEGORY: 'PROPERTY_SUBCATEGORY',
+  PROPERTY_CONFIGURATION: 'PROPERTY_CONFIGURATION',
   LOCATION: 'LOCATION',
   VALIDATE_LOCATION: 'VALIDATE_LOCATION',
   LOCATION_UNSERVICEABLE: 'LOCATION_UNSERVICEABLE',
@@ -39,7 +41,8 @@ const BACK_MAP = {
   [STATES.COLLECT_MOBILE]: STATES.COLLECT_NAME,
   [STATES.VERIFY_OTP]: STATES.COLLECT_MOBILE,
   [STATES.PROPERTY_SUBCATEGORY]: STATES.PROPERTY_CATEGORY,
-  [STATES.LOCATION]: STATES.PROPERTY_SUBCATEGORY,
+  [STATES.PROPERTY_CONFIGURATION]: STATES.PROPERTY_SUBCATEGORY,
+  [STATES.LOCATION]: STATES.PROPERTY_CONFIGURATION,
   [STATES.LOCATION_UNSERVICEABLE]: STATES.LOCATION,
   [STATES.NO_MATCH]: STATES.PROPERTY_CATEGORY,
   [STATES.SHOW_RESULTS]: STATES.LOCATION, // "Back to previous menu" after the results link
@@ -84,6 +87,34 @@ async function belongsToSelectedCategory(category, selectedCategoryIds) {
     current = await categoriesRepo.findById(parentId);
   }
   return false;
+}
+
+function selectedStrings(value) {
+  let values = value;
+  if (typeof values === 'string') {
+    try { values = JSON.parse(values); } catch (_err) { values = null; }
+  }
+  if (!Array.isArray(values)) return [];
+  return [...new Set(values.map((item) => String(item || '').trim()).filter(Boolean))];
+}
+
+function configurationOptions(configurations, categoryIds) {
+  const allowedCategoryIds = new Set(categoryIds.map(Number));
+  return configurations
+    .filter((item) => (
+      allowedCategoryIds.has(Number(item.category_id))
+      && typeof item.name === 'string' && item.name.trim()
+      && typeof item.slug === 'string' && item.slug.trim()
+    ))
+    .map((item) => ({
+      id: `${Number(item.category_id)}:${item.slug}`,
+      label: item.name.trim(),
+      categoryId: Number(item.category_id),
+    }));
+}
+
+async function getConfigurationOptions(categoryIds) {
+  return configurationOptions(await getCmsPropertyConfigurations(), categoryIds);
 }
 
 // Extra data the widget needs while waiting for an OTP.
@@ -141,6 +172,7 @@ async function currentPrompt(session) {
     }
     case STATES.PROPERTY_CATEGORY:
     case STATES.PROPERTY_SUBCATEGORY:
+    case STATES.PROPERTY_CONFIGURATION:
     case STATES.LOCATION: {
       const { reply } = await reenterState(session.session_id, session.state);
       return { ...none, options: reply.options };
@@ -152,6 +184,7 @@ async function currentPrompt(session) {
     case STATES.SHOW_RESULTS: {
       const categoryIds = selectedIds(session.category_ids, session.category_id);
       const subcategoryIds = selectedIds(session.subcategory_ids, session.subcategory_id);
+      const configurations = selectedStrings(session.configuration_values);
       const sectorIds = selectedIds(session.service_sector_ids, session.service_sector_id);
       const categories = await Promise.all(categoryIds.map((id) => categoriesRepo.findById(id)));
       const subcategories = await Promise.all(subcategoryIds.map((id) => subcategoriesRepo.findById(id)));
@@ -159,7 +192,8 @@ async function currentPrompt(session) {
       const result = registry.inventory
         ? await registry.inventory.findMatches({
           category: categories.filter(Boolean).map((category) => category.cms_slug || category.name),
-          subCategory: subcategories.filter(Boolean).map((subcategory) => subcategory.name),
+          propertyCategory: subcategories.filter(Boolean).map((subcategory) => subcategory.cms_slug || subcategory.name),
+          configuration: configurations,
           location: sectors.map((sector) => sector.slug),
         })
         : {};
@@ -335,7 +369,8 @@ async function selectCategory(sessionId, rawCategoryIds) {
 
   await messagesRepo.add({ sessionId, responseType: 'user', messageText: categories.map((category) => category.name).join(', ') });
   await sessionsRepo.updateFields(sessionId, {
-    categoryId: categoryIds[0], categoryIds, subcategoryId: null, subcategoryIds: [], state: STATES.PROPERTY_SUBCATEGORY,
+    categoryId: categoryIds[0], categoryIds, subcategoryId: null, subcategoryIds: [],
+    configurationIds: [], configurationValues: [], state: STATES.PROPERTY_SUBCATEGORY,
   });
 
   const subcategories = (await Promise.all(categoryIds.map((id) => subcategoriesRepo.listActiveLeafOptionsByCategory(id))))
@@ -376,15 +411,59 @@ async function selectSubcategory(sessionId, rawSubcategoryIds) {
   }
 
   await messagesRepo.add({ sessionId, responseType: 'user', messageText: subcategories.map((subcategory) => subcategory.name).join(', ') });
-  await sessionsRepo.updateFields(sessionId, { subcategoryId: subcategoryIds[0], subcategoryIds, state: STATES.LOCATION });
+  await sessionsRepo.updateFields(sessionId, {
+    subcategoryId: subcategoryIds[0], subcategoryIds, configurationIds: [], configurationValues: [],
+  });
+
+  const options = await getConfigurationOptions(categoryIds);
+  const state = options.length ? STATES.PROPERTY_CONFIGURATION : STATES.LOCATION;
+  await sessionsRepo.updateFields(sessionId, { state });
+  const text = options.length
+    ? 'Please select your property configuration:'
+    : 'Which preferred location or locality are you targeting?';
+  await messagesRepo.add({ sessionId, responseType: 'bot', messageText: text });
+  return {
+    session: await reload(sessionId),
+    reply: { text, options: options.length ? options : await locationOptions() },
+  };
+}
+
+async function selectConfiguration(sessionId, rawConfigurationIds) {
+  const session = await sessionsRepo.findById(sessionId);
+  if (!session) throw new ApiError(404, 'SESSION_NOT_FOUND', 'This chat session no longer exists.');
+  assertState(session, STATES.PROPERTY_CONFIGURATION);
+  assertVerified(session);
+
+  const categoryIds = selectedIds(session.category_ids, session.category_id);
+  const selectedConfigurationIds = selectedStrings(rawConfigurationIds);
+  if (!selectedConfigurationIds.length) {
+    throw new ApiError(400, 'INVALID_CONFIGURATION', 'Please select at least one property configuration.');
+  }
+  const options = await getConfigurationOptions(categoryIds);
+  const selectedOptions = selectedConfigurationIds.map((id) => options.find((option) => option.id === id));
+  if (selectedOptions.some((option) => !option)) {
+    throw new ApiError(400, 'INVALID_CONFIGURATION', 'Please select from the listed property configurations.');
+  }
+
+  const configurationValues = selectedOptions.map((option) => option.label);
+  await messagesRepo.add({ sessionId, responseType: 'user', messageText: configurationValues.join(', ') });
+  await sessionsRepo.updateFields(sessionId, {
+    configurationIds: selectedConfigurationIds,
+    configurationValues,
+    state: STATES.LOCATION,
+  });
 
   const text = 'Which preferred location or locality are you targeting?';
   await messagesRepo.add({ sessionId, responseType: 'bot', messageText: text });
-  const sectors = await serviceSectorsRepo.listActive();
   return {
     session: await reload(sessionId),
-    reply: { text, options: sectors.map((s) => ({ id: s.id, label: s.sector_name })).concat([{ id: null, label: 'Other' }]) },
+    reply: { text, options: await locationOptions() },
   };
+}
+
+async function locationOptions() {
+  const sectors = await serviceSectorsRepo.listActive();
+  return sectors.map((sector) => ({ id: sector.id, label: sector.sector_name })).concat([{ id: null, label: 'Other' }]);
 }
 
 async function submitLocation(sessionId, { serviceSectorIds = [], locationText }) {
@@ -446,6 +525,7 @@ async function matchInventory(sessionId) {
 
   const categoryIds = selectedIds(session.category_ids, session.category_id);
   const subcategoryIds = selectedIds(session.subcategory_ids, session.subcategory_id);
+  const configurations = selectedStrings(session.configuration_values);
   const sectorIds = selectedIds(session.service_sector_ids, session.service_sector_id);
   const categories = await Promise.all(categoryIds.map((id) => categoriesRepo.findById(id)));
   const subcategories = await Promise.all(subcategoryIds.map((id) => subcategoriesRepo.findById(id)));
@@ -454,7 +534,8 @@ async function matchInventory(sessionId) {
 
   const result = await registry.inventory.findMatches({
     category: categories.filter(Boolean).map((category) => category.cms_slug || category.name),
-    subCategory: subcategories.filter(Boolean).map((subcategory) => subcategory.name),
+    propertyCategory: subcategories.filter(Boolean).map((subcategory) => subcategory.cms_slug || subcategory.name),
+    configuration: configurations,
     location: selectedSectors.map((sector) => sector.slug),
   });
 
@@ -483,13 +564,22 @@ async function goBack(sessionId) {
   const session = await sessionsRepo.findById(sessionId);
   if (!session) throw new ApiError(404, 'SESSION_NOT_FOUND', 'This chat session no longer exists.');
 
-  const previous = BACK_MAP[session.state];
+  let previous = BACK_MAP[session.state];
+  if (session.state === STATES.LOCATION) {
+    const categoryIds = selectedIds(session.category_ids, session.category_id);
+    previous = (await getConfigurationOptions(categoryIds)).length
+      ? STATES.PROPERTY_CONFIGURATION
+      : STATES.PROPERTY_SUBCATEGORY;
+  }
   if (!previous) {
     const text = "You can't go back from this step.";
     return { session, reply: { text, options: null } };
   }
 
   await sessionsRepo.updateFields(sessionId, { state: previous });
+  if (previous === STATES.PROPERTY_SUBCATEGORY) {
+    await sessionsRepo.updateFields(sessionId, { configurationIds: [], configurationValues: [] });
+  }
   return reenterState(sessionId, previous);
 }
 
@@ -523,6 +613,17 @@ async function reenterState(sessionId, state) {
         },
       };
     }
+    case STATES.PROPERTY_CONFIGURATION: {
+      const categoryIds = selectedIds(session.category_ids, session.category_id);
+      const options = await getConfigurationOptions(categoryIds);
+      return {
+        session,
+        reply: {
+          text: 'Please select your property configuration:',
+          options,
+        },
+      };
+    }
     case STATES.LOCATION: {
       const sectors = await serviceSectorsRepo.listActive();
       return { session, reply: { text: 'Which preferred location or locality are you targeting?', options: sectors.map((s) => ({ id: s.id, label: s.sector_name })).concat([{ id: null, label: 'Other' }]) } };
@@ -543,6 +644,7 @@ async function mainMenu(sessionId) {
 
   await sessionsRepo.updateFields(sessionId, {
     categoryId: null, categoryIds: [], subcategoryId: null, subcategoryIds: [],
+    configurationIds: [], configurationValues: [],
     serviceSectorId: null, serviceSectorIds: [], state: STATES.PROPERTY_CATEGORY,
   });
   await messagesRepo.add({ sessionId, responseType: 'user', messageText: 'Back to main menu' });
@@ -561,6 +663,7 @@ module.exports = {
   changeMobile,
   selectCategory,
   selectSubcategory,
+  selectConfiguration,
   submitLocation,
   matchInventory,
   goBack,

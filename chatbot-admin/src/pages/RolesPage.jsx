@@ -10,7 +10,7 @@ const PERMISSIONS = [
   ['canViewAllAdminChats', 'can_view_all_admin_chats', 'View all admin chats'],
   ['canDownload', 'can_download', 'Export / download data'],
   ['canManageUsers', 'can_manage_users', 'Manage users'],
-  ['canManageCategories', 'can_manage_categories', 'Manage categories & subcategories'],
+  ['canManageCategories', 'can_manage_categories', 'Manage categories, subcategories & property configurations'],
   ['canManageRoles', 'can_manage_roles', 'Manage roles'],
   ['canAccessTrainAi', 'can_access_train_ai', 'AI training'],
   ['canAccessTokenUsage', 'can_access_token_usage', 'Token usage'],

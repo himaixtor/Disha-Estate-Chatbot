@@ -64,6 +64,9 @@ const chatSubcategory = z.object({
   subcategoryId: z.number().int().positive().optional(),
   subcategoryIds: z.array(z.number().int().positive()).min(1).max(100).optional(),
 }).refine((body) => body.subcategoryId !== undefined || body.subcategoryIds !== undefined);
+const chatConfiguration = z.object({
+  configurationIds: z.array(z.string().min(1).max(220)).min(1).max(100),
+});
 const chatLocation = z.object({
   serviceSectorId: z.number().int().positive().nullable().optional(),
   serviceSectorIds: z.array(z.number().int().positive()).max(100).optional(),
@@ -119,6 +122,6 @@ module.exports = {
   categoryCreate, categoryUpdate,
   subcategoryCreate, subcategoryUpdate,
   serviceSectorCreate, serviceSectorUpdate,
-  chatName, chatMobile, chatOtp, chatCategory, chatSubcategory, chatLocation,
+  chatName, chatMobile, chatOtp, chatCategory, chatSubcategory, chatConfiguration, chatLocation,
   licenseCreate, roleCreate, roleUpdate, setUserRole,
 };

@@ -4,6 +4,7 @@ router.use('/health', require('./health.routes'));
 router.use('/auth', require('./auth.routes'));
 router.use('/chat', require('./chat.routes'));
 router.use('/categories', require('./categories.routes'));
+router.use('/property-configurations', require('./propertyConfigurations.routes'));
 router.use('/subcategories', require('./subcategories.routes'));
 router.use('/service-sectors', require('./serviceSectors.routes'));
 router.use('/leads', require('./leads.routes'));

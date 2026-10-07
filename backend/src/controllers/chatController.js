@@ -22,10 +22,19 @@ function serializeSession(session) {
     categoryIds: serializeIds(session.category_ids, session.category_id),
     subcategoryId: session.subcategory_id,
     subcategoryIds: serializeIds(session.subcategory_ids, session.subcategory_id),
+    configurationIds: parseStringArray(session.configuration_ids),
+    configurationValues: parseStringArray(session.configuration_values),
     serviceSectorId: session.service_sector_id,
     serviceSectorIds: serializeIds(session.service_sector_ids, session.service_sector_id),
     leadStatus: session.lead_status,
   };
+}
+
+function parseStringArray(value) {
+  if (typeof value === 'string') {
+    try { value = JSON.parse(value); } catch (_err) { value = null; }
+  }
+  return Array.isArray(value) ? [...new Set(value.map(String).filter(Boolean))] : [];
 }
 
 const createSession = asyncHandler(async (req, res) => {
@@ -82,6 +91,11 @@ const selectSubcategory = asyncHandler(async (req, res) => {
   ok(res, { session: serializeSession(session), reply });
 });
 
+const selectConfiguration = asyncHandler(async (req, res) => {
+  const { session, reply } = await workflow.selectConfiguration(req.params.id, req.body.configurationIds);
+  ok(res, { session: serializeSession(session), reply });
+});
+
 const submitLocation = asyncHandler(async (req, res) => {
   const { session, reply } = await workflow.submitLocation(req.params.id, {
     serviceSectorIds: req.body.serviceSectorIds || (req.body.serviceSectorId == null ? [] : [req.body.serviceSectorId]),
@@ -102,5 +116,5 @@ const mainMenu = asyncHandler(async (req, res) => {
 
 module.exports = {
   createSession, getSession, submitName, submitMobile, verifyOtp, resendOtp, changeMobile,
-  selectCategory, selectSubcategory, submitLocation, goBack, mainMenu,
+  selectCategory, selectSubcategory, selectConfiguration, submitLocation, goBack, mainMenu,
 };

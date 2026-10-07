@@ -23,6 +23,7 @@ async function updateFields(sessionId, fields) {
     name: 'name', email: 'email', mobileNumber: 'mobile_number', chatLanguage: 'chat_language',
     categoryId: 'category_id', subcategoryId: 'subcategory_id', serviceSectorId: 'service_sector_id',
     categoryIds: 'category_ids', subcategoryIds: 'subcategory_ids', serviceSectorIds: 'service_sector_ids',
+    configurationIds: 'configuration_ids', configurationValues: 'configuration_values',
     state: 'state', leadGenerated: 'lead_generated', leadStatus: 'lead_status', isFocus: 'is_focus',
     reviewRating: 'review_rating', userUid: 'user_uid', conversationTitle: 'conversation_title',
     deletedByOwner: 'deleted_by_owner', isPinned: 'is_pinned',
@@ -33,6 +34,7 @@ async function updateFields(sessionId, fields) {
     if (fields[key] !== undefined) {
       cols.push(`${col} = :${key}`);
       params[key] = key === 'categoryIds' || key === 'subcategoryIds' || key === 'serviceSectorIds'
+        || key === 'configurationIds' || key === 'configurationValues'
         ? JSON.stringify(fields[key])
         : fields[key];
     }

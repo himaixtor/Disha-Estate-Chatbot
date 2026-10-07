@@ -37,10 +37,17 @@ app.use('/api/v1', routes);
 // safe to leave in for local dev too.
 const ADMIN_DIST = path.join(__dirname, '..', '..', 'chatbot-admin', 'dist');
 if (fs.existsSync(ADMIN_DIST)) {
-  app.use('/admin', express.static(ADMIN_DIST));
+  app.use('/admin', express.static(ADMIN_DIST, {
+    setHeaders(res, filePath) {
+      if (path.basename(filePath) === 'index.html') res.setHeader('Cache-Control', 'no-cache');
+    },
+  }));
   // SPA fallback — anything under /admin that isn't a real static file is a
   // client-side route (React Router), so always hand back index.html for it.
-  app.get('/admin/*', (req, res) => res.sendFile(path.join(ADMIN_DIST, 'index.html')));
+  app.get('/admin/*', (req, res) => {
+    res.setHeader('Cache-Control', 'no-cache');
+    res.sendFile(path.join(ADMIN_DIST, 'index.html'));
+  });
 }
 
 const WIDGET_SRC = path.join(__dirname, '..', '..', 'chatbot', 'src', 'widget.js');

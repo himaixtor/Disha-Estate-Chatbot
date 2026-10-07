@@ -3,7 +3,7 @@
  * Disha's (or any future client's) property inventory.
  *
  * @interface
- *   findMatches({ category, subCategory, location, sessionId }): Promise<{
+ *   findMatches({ category, propertyCategory, configuration, location, sessionId }): Promise<{
  *     matched: boolean, resultUrl?: string, properties?: Array<object>
  *   }>
  */

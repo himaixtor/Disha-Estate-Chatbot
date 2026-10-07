@@ -12,18 +12,20 @@ function uniqueValues(value) {
     .filter(Boolean))];
 }
 
-function buildResultParams({ category, subCategory, location }) {
+function buildResultParams({ category, propertyCategory, configuration, location }) {
   const propertyTypes = uniqueValues(category)
     .map((value) => value.toLowerCase())
     .filter((value) => !SKIP_PROPERTY_TYPES.includes(value));
-  const bhks = uniqueValues(subCategory)
+  const propertyCategories = uniqueValues(propertyCategory);
+  const configurations = uniqueValues(configuration)
     .filter((value) => !SKIP_BHK.includes(value.toLowerCase()))
     .map((value) => (/^\d+\s*BHK$/i.test(value) ? value.replace(/\s+/g, '') : value));
   const localities = uniqueValues(location).map((value) => value.toLowerCase());
   const params = new URLSearchParams();
 
   if (propertyTypes.length) params.set('property_type', propertyTypes.join(','));
-  if (bhks.length) params.set('bhk', bhks.join(','));
+  if (propertyCategories.length) params.set('category', propertyCategories.join(','));
+  if (configurations.length) params.set('bhk', configurations.join(','));
   if (localities.length) params.set('localities', localities.join(','));
   return params;
 }

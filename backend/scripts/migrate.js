@@ -24,6 +24,8 @@ const COLUMN_UPGRADES = [
   ['chatbot_sessions', 'category_ids', 'ADD COLUMN category_ids JSON NULL AFTER subcategory_id'],
   ['chatbot_sessions', 'subcategory_ids', 'ADD COLUMN subcategory_ids JSON NULL AFTER category_ids'],
   ['chatbot_sessions', 'service_sector_ids', 'ADD COLUMN service_sector_ids JSON NULL AFTER service_sector_id'],
+  ['chatbot_sessions', 'configuration_ids', 'ADD COLUMN configuration_ids JSON NULL AFTER service_sector_ids'],
+  ['chatbot_sessions', 'configuration_values', 'ADD COLUMN configuration_values JSON NULL AFTER configuration_ids'],
 ];
 
 const INDEX_UPGRADES = [
@@ -62,6 +64,23 @@ async function applyColumnUpgrades(conn) {
     console.log(`  + ${table}.${column}`);
     await conn.query(`ALTER TABLE ${table} ${clause}`);
   }
+}
+
+async function applyChatSessionStateUpgrade(conn) {
+  if (!(await tableExists(conn, 'chatbot_sessions'))) return;
+  const [rows] = await conn.query(
+    `SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'chatbot_sessions' AND COLUMN_NAME = 'state' LIMIT 1`
+  );
+  if (!rows.length || rows[0].COLUMN_TYPE.includes("'PROPERTY_CONFIGURATION'")) return;
+  console.log('  ~ chatbot_sessions.state: adding PROPERTY_CONFIGURATION');
+  await conn.query(
+    `ALTER TABLE chatbot_sessions MODIFY state ENUM(
+      'WELCOME','COLLECT_NAME','VERIFY_NAME','COLLECT_MOBILE','SEND_OTP','VERIFY_OTP',
+      'PROPERTY_CATEGORY','PROPERTY_SUBCATEGORY','PROPERTY_CONFIGURATION','LOCATION','VALIDATE_LOCATION',
+      'LOCATION_UNSERVICEABLE','MATCHING_INVENTORY','NO_MATCH','SHOW_RESULTS','AI_SCHEME_QA'
+    ) NOT NULL DEFAULT 'WELCOME'`
+  );
 }
 
 async function applyLegacyCategoryIndexDrops(conn) {
@@ -230,6 +249,8 @@ async function main() {
 
   console.log('Checking for column upgrades on existing tables ...');
   await applyColumnUpgrades(conn);
+  console.log('Checking for chat session state upgrades ...');
+  await applyChatSessionStateUpgrade(conn);
   console.log('Renaming service-sector area_code to slug ...');
   await renameAreaCodeToSlug(conn);
   console.log('Removing legacy category indexes ...');

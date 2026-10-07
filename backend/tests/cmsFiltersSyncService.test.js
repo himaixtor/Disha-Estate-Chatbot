@@ -1,11 +1,38 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { categoryTree, locationLeaves, syncChildCategories, unwrapFilters } = require('../src/services/cmsFiltersSyncService');
+const {
+  addRootCategoryIds,
+  categoryTree,
+  locationLeaves,
+  syncChildCategories,
+  unwrapConfigurations,
+  unwrapFilters,
+} = require('../src/services/cmsFiltersSyncService');
 const { activeLeafOptions } = require('../src/db/repositories/subcategoriesRepo');
 
 test('unwraps nested CMS filters responses', () => {
   const filters = { locations: [], property_types: [] };
   assert.equal(unwrapFilters({ data: { filters } }), filters);
+});
+
+test('unwraps CMS configurations and maps dynamic types to root category ids', () => {
+  const configurations = unwrapConfigurations({
+    status: 'success',
+    data: { configurations: [
+      { name: '1BHK', slug: '1bhk', type: 'residential' },
+      { name: 'Office', slug: 'office', type: 'commercial' },
+    ] },
+  });
+  assert.deepEqual(addRootCategoryIds(configurations, [
+    { id: 7, name: 'Residential', cms_slug: 'residential' },
+  ]), [
+    { name: '1BHK', slug: '1bhk', type: 'residential', category_id: 7 },
+    { name: 'Office', slug: 'office', type: 'commercial', category_id: null },
+  ]);
+});
+
+test('rejects CMS configuration responses without a configurations array', () => {
+  assert.throws(() => unwrapConfigurations({ data: {} }), { code: 'INVALID_CMS_FILTERS' });
 });
 
 test('returns terminal locations rather than parent group nodes', () => {

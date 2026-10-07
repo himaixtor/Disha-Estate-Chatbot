@@ -129,9 +129,10 @@
     .row { display: flex; width: 100%; flex-direction: column; gap: 4px; }
     .row.bot { align-items: flex-start; }
     .row.user { align-items: flex-end; }
-    .bubble { max-width: 80%; padding: 10px 14px; font-size: .88rem; line-height: 1.4; border-radius: 12px; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
+    .bubble { position: relative; max-width: 80%; padding: 10px 14px 24px; font-size: .88rem; line-height: 1.4; border-radius: 12px; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
     .date-separator { align-self: center; color: #8A7B72; background: #F8F3EE; border-radius: 20px; font-size: .68rem; line-height: 1.2; padding: 5px 10px; }
-    .message-time { color: #8A7B72; font-size: .65rem; line-height: 1.2; padding: 0 4px; }
+    .message-time { position: absolute; right: 10px; bottom: 6px; color: #8A7B72; font-size: .65rem; line-height: 1.2; }
+    .row.user .message-time { color: rgba(255,255,255,.75); }
     .row.bot .bubble { background: #F5E9DE; color: #241C18; border-bottom-left-radius: 2px; }
     .row.user .bubble { background: ${config.accentColor}; color: #fff; border-bottom-right-radius: 2px; }
     .bubble a { color: ${config.accentColor}; font-weight: 600; text-decoration: underline; overflow-wrap: anywhere; word-break: break-all; }
@@ -457,7 +458,7 @@
       return json.data;
     }
 
-    _appendMessageTime(row, timestamp = new Date()) {
+    _appendMessageTime(bubble, timestamp = new Date()) {
       const date = new Date(timestamp);
       const validDate = Number.isNaN(date.getTime()) ? new Date() : date;
       const dateKey = `${validDate.getFullYear()}-${validDate.getMonth()}-${validDate.getDate()}`;
@@ -482,7 +483,7 @@
       time.textContent = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
         .format(validDate)
         .toLowerCase();
-      row.appendChild(time);
+      bubble.appendChild(time);
     }
 
     _addMessage(text, sender, timestamp = new Date()) {
@@ -492,7 +493,7 @@
       bubble.className = 'bubble';
       bubble.textContent = text;
       row.appendChild(bubble);
-      this._appendMessageTime(row, timestamp);
+      this._appendMessageTime(bubble, timestamp);
       this.el.body.appendChild(row);
       this.el.body.scrollTop = this.el.body.scrollHeight;
     }
@@ -509,7 +510,7 @@
       link.textContent = label || url;
       bubble.appendChild(link);
       row.appendChild(bubble);
-      this._appendMessageTime(row);
+      this._appendMessageTime(bubble);
       this.el.body.appendChild(row);
       this.el.body.scrollTop = this.el.body.scrollHeight;
     }
@@ -612,7 +613,8 @@
         optionActions.className = 'options-actions';
         container.append(optionList, optionActions);
       }
-      const selected = new Set(selectedIds.map(Number));
+      const availableIds = new Set(choices.map((option) => String(option.id)));
+      const selected = new Set(selectedIds.map(String).filter((id) => availableIds.has(id)));
       let continueButton = null;
       const updateSelectedCount = () => {
         if (selectedCount) {
@@ -641,7 +643,8 @@
       choices.forEach((opt) => {
         const chip = document.createElement('button');
         chip.type = 'button';
-        const isSelected = selected.has(Number(opt.id));
+        const optionId = String(opt.id);
+        const isSelected = selected.has(optionId);
         chip.className = `chip${multiple && isSelected ? ' selected' : ''}`;
         chip.textContent = opt.label;
         chip.title = opt.label;
@@ -650,12 +653,12 @@
         if (multiple) {
           chip.setAttribute('aria-pressed', String(isSelected));
           chip.addEventListener('click', () => {
-            if (selected.has(Number(opt.id))) {
-              selected.delete(Number(opt.id));
+            if (selected.has(optionId)) {
+              selected.delete(optionId);
               chip.classList.remove('selected');
               chip.setAttribute('aria-pressed', 'false');
             } else {
-              selected.add(Number(opt.id));
+              selected.add(optionId);
               chip.classList.add('selected');
               chip.setAttribute('aria-pressed', 'true');
             }
@@ -680,7 +683,7 @@
         continueButton.disabled = selected.size === 0;
         continueButton.addEventListener('click', () => {
           if (!selected.size) return;
-          const selectedOptions = choices.filter((option) => selected.has(Number(option.id)));
+          const selectedOptions = choices.filter((option) => selected.has(String(option.id)));
           container.remove();
           this._addMessage(selectedOptions.map((option) => option.label).join(', '), 'user');
           onSelect(selectedOptions);
@@ -856,6 +859,14 @@
             selectedIds: data.session.state === 'PROPERTY_CATEGORY' ? data.session.categoryIds : data.session.subcategoryIds,
           });
           break;
+        case 'PROPERTY_CONFIGURATION':
+          this._setInputMode({ hidden: true });
+          this._addOptions(data.reply.options, (options) => this._selectConfiguration(options), {
+            withBack: true,
+            multiple: true,
+            selectedIds: data.session.configurationIds,
+          });
+          break;
         case 'LOCATION':
           this._setInputMode({ hidden: true });
           this._addOptions(data.reply.options, (options) => this._selectLocation(options), {
@@ -889,6 +900,18 @@
         await this._typingDelay(300);
         await this._handleReply(await this._api(`/chat/session/${this.sessionId}/${path}`, {
           method: 'POST', body: { [bodyKey]: options.map((option) => option.id) },
+        }));
+      } catch (err) {
+        this._addMessage(err.message, 'bot');
+      }
+    }
+
+    async _selectConfiguration(options) {
+      try {
+        await this._typingDelay(300);
+        await this._handleReply(await this._api(`/chat/session/${this.sessionId}/configuration`, {
+          method: 'POST',
+          body: { configurationIds: options.map((option) => option.id) },
         }));
       } catch (err) {
         this._addMessage(err.message, 'bot');

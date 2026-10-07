@@ -98,7 +98,8 @@ npm run dev                 # http://localhost:5174
 ```
 
 Pages: Dashboard, Leads & Chats (view/pin/change status, read conversation
-history), Categories (+ inline subcategory management), Service Sectors,
+history), Categories (+ inline subcategory management), Property Configuration
+(CMS configurations mapped to their main category IDs), Service Sectors,
 Users (create/deactivate, role-based), Licenses (create/activate/suspend/renew).
 
 Login uses the admin user you created with `create-admin`. Sign-in

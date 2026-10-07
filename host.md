@@ -35,8 +35,9 @@ not doing them by hand on the server:
    It now detects local dev vs. production automatically, and the widget's
    built-in default API address is now `https://chat.dishaestate.com:3001/api/v1`.
 2. **The admin portal has been built for production** — `chatbot-admin/dist/`
-   was regenerated with `VITE_API_BASE=https://chat.dishaestate.com:3001/api/v1`
-   and `VITE_BASE_PATH=/admin/` baked in (see `chatbot-admin/.env.production`).
+   is generated with `VITE_API_BASE=https://chat.dishaestate.com:3001/api/v1`
+   and `/admin/` asset paths baked in. Production builds default to `/admin/`;
+   `VITE_BASE_PATH` can override it (see `chatbot-admin/.env.production`).
 3. **A `deploy/` folder** (and a zipped copy, `disha-chatbot-deploy.zip`, both
    in the repo root next to this file) containing **only** what needs to go to
    the server — no `node_modules`, no tests, no dev files:
