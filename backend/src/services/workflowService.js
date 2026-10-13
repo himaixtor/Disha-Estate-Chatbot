@@ -271,6 +271,29 @@ async function submitMobile(sessionId, rawMobile) {
   return { session: await reload(sessionId), reply: { text, options: null, ...otpReplyMeta() } };
 }
 
+// The visitor already verified this number via OTP on the main website (shared
+// `whatsapp_verified` cookie), so skip the mobile + OTP steps. Falls back to the
+// normal COLLECT_MOBILE step when the number is invalid.
+async function submitVerifiedMobile(sessionId, rawMobile) {
+  const session = await sessionsRepo.findById(sessionId);
+  if (!session) throw new ApiError(404, 'SESSION_NOT_FOUND', 'This chat session no longer exists.');
+  assertState(session, STATES.COLLECT_MOBILE);
+
+  const normalized = normalizeMobile(rawMobile);
+  if (!normalized) throw new ApiError(400, 'INVALID_MOBILE', 'Please enter a valid mobile number.');
+
+  await sessionsRepo.updateFields(sessionId, {
+    mobileNumber: normalized, state: STATES.PROPERTY_CATEGORY, leadGenerated: 1, leadStatus: 'verified',
+  });
+  const categories = await categoriesRepo.listActive();
+  const text = `Your mobile number ${normalized} is already verified. What type of property are you looking for?`;
+  await messagesRepo.add({ sessionId, responseType: 'bot', messageText: text });
+  return {
+    session: await reload(sessionId),
+    reply: { text, options: categories.map((c) => ({ id: c.id, label: c.name })) },
+  };
+}
+
 // "Resend OTP" — same number, new code (the latest code is the only one
 // verifyOtp checks, so the previous one stops working). Cooldown + per-session
 // cap are enforced in otpService.
@@ -658,6 +681,7 @@ module.exports = {
   resumeSession,
   submitName,
   submitMobile,
+  submitVerifiedMobile,
   verifyOtp,
   resendOtp,
   changeMobile,

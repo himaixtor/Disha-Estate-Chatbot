@@ -3,7 +3,7 @@ const otpRepo = require('../db/repositories/otpRepo');
 const { registry } = require('../modules/registry');
 const { ApiError } = require('../utils/apiResponse');
 
-const OTP_EXPIRY_SECONDS = 300; // 5 min — blueprint §E recommended default
+const OTP_EXPIRY_SECONDS = 30; // 30 seconds — blueprint §E recommended default
 const OTP_MAX_ATTEMPTS = 5;
 // The code is always exactly this many digits (min = max). The widget input,
 // the request validator and the "we sent a N-digit code" text all read it

@@ -64,6 +64,11 @@ const submitMobile = asyncHandler(async (req, res) => {
   ok(res, { session: serializeSession(session), reply });
 });
 
+const submitVerifiedMobile = asyncHandler(async (req, res) => {
+  const { session, reply } = await workflow.submitVerifiedMobile(req.params.id, req.body.mobileNumber);
+  ok(res, { session: serializeSession(session), reply });
+});
+
 const verifyOtp = asyncHandler(async (req, res) => {
   const { session, reply } = await workflow.verifyOtp(req.params.id, req.body.code);
   ok(res, { session: serializeSession(session), reply });
@@ -115,6 +120,6 @@ const mainMenu = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
-  createSession, getSession, submitName, submitMobile, verifyOtp, resendOtp, changeMobile,
+  createSession, getSession, submitName, submitMobile, submitVerifiedMobile, verifyOtp, resendOtp, changeMobile,
   selectCategory, selectSubcategory, selectConfiguration, submitLocation, goBack, mainMenu,
 };
