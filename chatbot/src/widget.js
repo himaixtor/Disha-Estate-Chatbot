@@ -28,7 +28,7 @@
     accentColor: '#EB161F',
     accentHover: '#C93420',
     position: 'bottom-right',
-    otpStaticString: 'disha_estate_chat_salt',
+    otpStaticString: '7fN9xQ2vL8mR5pK4zT6wY1cB',
     verifiedCookieName: 'whatsapp_verified',
   };
 
@@ -65,8 +65,8 @@
   const SESSION_COOKIE = 'disha_chat_session';
   // Holds the SHA-256 hash of (static_string + mobile_number) for visitors who
   // have already verified their number, allowing them to bypass the OTP step.
-  const VERIFIED_COOKIE = config.verifiedCookieName || 'whatsapp_verified';
-  const STATIC_SALT = config.otpStaticString || 'disha_estate_chat_salt';
+  const VERIFIED_COOKIE = config.verifiedCookieName || 'xxxxx';
+  const STATIC_SALT = config.otpStaticString || 'xxxxx';
   const SESSION_TTL_SECONDS = 24 * 60 * 60; // backend SESSION_RESUME_TTL_SECONDS
 
   function readCookie(name) {

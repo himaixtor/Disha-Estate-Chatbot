@@ -25,7 +25,19 @@ const dashboard = asyncHandler(async (req, res) => {
   ok(res, { totals, byCategory, bySector });
 });
 
-const listUsers = asyncHandler(async (req, res) => ok(res, await usersRepo.list()));
+const listUsers = asyncHandler(async (req, res) => {
+  if (req.query.limit === undefined && req.query.offset === undefined && req.query.search === undefined) {
+    const { items } = await usersRepo.list();
+    return ok(res, items);
+  }
+
+  const requestedLimit = Number.parseInt(req.query.limit, 10);
+  const requestedOffset = Number.parseInt(req.query.offset, 10);
+  const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 100) : 20;
+  const offset = Number.isFinite(requestedOffset) ? Math.max(requestedOffset, 0) : 0;
+  const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
+  ok(res, await usersRepo.list({ limit, offset, search }));
+});
 
 const listRoles = asyncHandler(async (req, res) => ok(res, await rolesRepo.list()));
 

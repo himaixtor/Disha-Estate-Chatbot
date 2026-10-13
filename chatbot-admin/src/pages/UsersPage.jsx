@@ -4,11 +4,18 @@ import { useAuth } from '../context/AuthContext';
 import { assignableLevels } from '../roleLevels';
 import Modal from '../components/Modal';
 
+const PAGE_SIZE = 20;
+
 export default function UsersPage() {
   const { user: me } = useAuth();
   const [users, setUsers] = useState([]);
+  const [total, setTotal] = useState(0);
   const [roles, setRoles] = useState([]);
   const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState('');
+  const [offset, setOffset] = useState(0);
   const [modal, setModal] = useState(false);
 
   const myLevels = assignableLevels(me?.roleLevel);
@@ -16,18 +23,41 @@ export default function UsersPage() {
   // — "admin can only set roles for manager, viewer and other category").
   const assignableRoles = roles.filter((r) => myLevels.includes(r.role_level));
 
-  const load = useCallback(() => {
-    Promise.all([api.get('/admin/users'), api.get('/admin/roles')])
-      .then(([u, r]) => { setUsers(u); setRoles(r); })
-      .catch((e) => setError(e.message));
-  }, []);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearch(searchInput.trim());
+      setOffset(0);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(offset) });
+    if (search) params.set('search', search);
+    try {
+      const [result, r] = await Promise.all([
+        api.get(`/admin/users?${params.toString()}`),
+        api.get('/admin/roles'),
+      ]);
+      setUsers(result.items);
+      setTotal(result.total);
+      setRoles(r);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [offset, search]);
 
   useEffect(() => { load(); }, [load]);
 
   async function createUser(form) {
     await api.post('/admin/users', form);
     setModal(false);
-    load();
+    if (offset === 0) load();
+    else setOffset(0);
   }
 
   async function toggleActive(u) {
@@ -68,7 +98,17 @@ export default function UsersPage() {
       {error && <div className="error-text">{error}</div>}
 
       <div className="card">
-        {users.length === 0 ? <div className="empty-state">No users yet.</div> : (
+        <div className="leads-toolbar">
+          <div className="field search-field">
+            <input
+              type="search"
+              placeholder="Search by name, email, or phone number..."
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+            />
+          </div>
+        </div>
+        {users.length === 0 ? <div className="empty-state">{loading ? 'Loading users…' : 'No users found.'}</div> : (
           <table>
             <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th></th></tr></thead>
             <tbody>
@@ -100,6 +140,14 @@ export default function UsersPage() {
             </tbody>
           </table>
         )}
+        <div className="leads-pagination">
+          <span>{total ? `${offset + 1}-${Math.min(offset + users.length, total)} of ${total}` : '0 of 0'}</span>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <span>Page {Math.floor(offset / PAGE_SIZE) + 1} of {Math.max(1, Math.ceil(total / PAGE_SIZE))}</span>
+            <button className="btn" disabled={loading || offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}>Previous</button>
+            <button className="btn" disabled={loading || offset + PAGE_SIZE >= total} onClick={() => setOffset(offset + PAGE_SIZE)}>Next</button>
+          </div>
+        </div>
       </div>
 
       {modal && (

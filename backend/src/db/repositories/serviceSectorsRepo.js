@@ -23,9 +23,25 @@ async function findByNameOrSlug(text) {
   return rows[0] || null;
 }
 
-async function listAll() {
-  const [rows] = await pool.query('SELECT * FROM service_sectors ORDER BY sector_name');
-  return rows;
+async function listAll({ limit, offset, search = '' } = {}) {
+  if (limit === undefined) {
+    const [rows] = await pool.query('SELECT * FROM service_sectors ORDER BY sector_name, id');
+    return rows;
+  }
+
+  const where = search ? 'WHERE sector_name LIKE :search OR slug LIKE :search' : '';
+  const params = { limit, offset };
+  if (search) params.search = `%${search}%`;
+
+  const [[{ total }]] = await pool.query(
+    `SELECT COUNT(*) AS total FROM service_sectors ${where}`,
+    search ? { search: params.search } : {}
+  );
+  const [rows] = await pool.query(
+    `SELECT * FROM service_sectors ${where} ORDER BY sector_name, id LIMIT :limit OFFSET :offset`,
+    params
+  );
+  return { items: rows, total };
 }
 
 async function create({ sectorName, slug }) {

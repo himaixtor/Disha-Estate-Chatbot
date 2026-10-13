@@ -18,14 +18,24 @@ async function create({ uid, email, name, passwordHash, roleUid, contactNumber }
   );
 }
 
-async function list({ limit = 50, offset = 0 } = {}) {
+async function list({ limit = 50, offset = 0, search = '' } = {}) {
+  const where = search
+    ? 'WHERE name LIKE :search OR email LIKE :search OR contact_number LIKE :search'
+    : '';
+  const params = { limit, offset };
+  if (search) params.search = `%${search}%`;
+
+  const [[{ total }]] = await pool.query(
+    `SELECT COUNT(*) AS total FROM users ${where}`,
+    search ? { search: params.search } : {}
+  );
   const [rows] = await pool.query(
     `SELECT uid, email, name, role_uid, contact_number, is_active, failed_login_attempts,
             locked_until, created_at, updated_at
-     FROM users ORDER BY created_at DESC LIMIT :limit OFFSET :offset`,
-    { limit, offset }
+     FROM users ${where} ORDER BY created_at DESC LIMIT :limit OFFSET :offset`,
+    params
   );
-  return rows;
+  return { items: rows, total };
 }
 
 async function recordFailedLogin(uid, { lockUntil } = {}) {

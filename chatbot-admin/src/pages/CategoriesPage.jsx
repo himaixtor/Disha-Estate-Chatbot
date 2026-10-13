@@ -2,23 +2,45 @@ import { useEffect, useState, useCallback, Fragment } from 'react';
 import { api } from '../api/client';
 import Modal from '../components/Modal';
 
+const PAGE_SIZE = 20;
+
 export default function CategoriesPage() {
   const [categories, setCategories] = useState([]);
   const [subcategories, setSubcategories] = useState([]);
   const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState('');
+  const [offset, setOffset] = useState(0);
   const [syncMessage, setSyncMessage] = useState(null);
   const [syncing, setSyncing] = useState(false);
   const [expanded, setExpanded] = useState(() => new Set());
   const [catModal, setCatModal] = useState(null);
   const [subModal, setSubModal] = useState(null);
 
-  const load = useCallback(() => {
-    Promise.all([api.get('/categories/admin/all'), api.get('/subcategories')])
-      .then(([cats, subs]) => { setCategories(cats); setSubcategories(subs); })
-      .catch((e) => setError(e.message));
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [cats, subs] = await Promise.all([api.get('/categories/admin/all'), api.get('/subcategories')]);
+      setCategories(cats);
+      setSubcategories(subs);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearch(searchInput.trim().toLowerCase());
+      setOffset(0);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
   async function saveCategory(form) {
     await api.patch(`/categories/${catModal.data.id}`, { name: form.name, sortOrder: Number(form.sortOrder) || 0 });
@@ -58,10 +80,20 @@ export default function CategoriesPage() {
     childrenByParent.get(parentId).push(category);
   });
 
+  function matchesBranch(category, ancestors = new Set()) {
+    if (search && category.name.toLowerCase().includes(search)) return true;
+    if (ancestors.has(Number(category.id))) return false;
+    const nextAncestors = new Set([...ancestors, Number(category.id)]);
+    return (childrenByParent.get(Number(category.id)) || [])
+      .some((child) => matchesBranch(child, nextAncestors));
+  }
+
   function renderCategoryRow(category, depth = 0) {
     const children = childrenByParent.get(Number(category.id)) || [];
-    const isOpen = expanded.has(category.id);
+    const categoryMatches = !search || category.name.toLowerCase().includes(search);
+    const isOpen = expanded.has(category.id) || (Boolean(search) && !categoryMatches);
     const isChild = category.parent_id !== null;
+    const visibleChildren = search && !categoryMatches ? children.filter((child) => matchesBranch(child)) : children;
     return (
       <Fragment key={category.id}>
         <tr>
@@ -82,10 +114,15 @@ export default function CategoriesPage() {
             </button>
           </td>
         </tr>
-        {isOpen && children.map((child) => renderCategoryRow(child, depth + 1))}
+        {isOpen && visibleChildren.map((child) => renderCategoryRow(child, depth + 1))}
       </Fragment>
     );
   }
+
+  const matchingCategories = search ? categories.filter((category) => matchesBranch(category)) : categories;
+  const visibleCategories = matchingCategories.slice(offset, offset + PAGE_SIZE);
+  const pageCount = Math.max(1, Math.ceil(matchingCategories.length / PAGE_SIZE));
+  const page = Math.floor(offset / PAGE_SIZE) + 1;
 
   async function syncFromCms() {
     setSyncing(true);
@@ -115,14 +152,32 @@ export default function CategoriesPage() {
       {syncMessage && <div className="status-pill" role="status"><span />{syncMessage}</div>}
 
       <div className="card">
-        {categories.length === 0 ? <div className="empty-state">No categories yet.</div> : (
+        <div className="leads-toolbar">
+          <div className="field search-field">
+            <input
+              type="search"
+              placeholder="Search categories and child categories..."
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+            />
+          </div>
+        </div>
+        {visibleCategories.length === 0 ? <div className="empty-state">{loading ? 'Loading categories…' : 'No categories found.'}</div> : (
           <table>
             <thead><tr><th>Name</th><th>Status</th><th>Sort</th><th>Child categories</th><th></th></tr></thead>
             <tbody>
-              {categories.map((category) => renderCategoryRow(category))}
+              {visibleCategories.map((category) => renderCategoryRow(category))}
             </tbody>
           </table>
         )}
+        <div className="leads-pagination">
+          <span>{matchingCategories.length ? `${offset + 1}-${Math.min(offset + PAGE_SIZE, matchingCategories.length)} of ${matchingCategories.length}` : '0 of 0'}</span>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <span>Page {page} of {pageCount}</span>
+            <button className="btn" disabled={loading || offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}>Previous</button>
+            <button className="btn" disabled={loading || offset + PAGE_SIZE >= matchingCategories.length} onClick={() => setOffset(offset + PAGE_SIZE)}>Next</button>
+          </div>
+        </div>
       </div>
 
       {catModal && (
