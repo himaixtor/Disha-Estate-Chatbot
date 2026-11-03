@@ -12,7 +12,7 @@ function uniqueValues(value) {
     .filter(Boolean))];
 }
 
-function buildResultParams({ category, propertyCategory, configuration, location }) {
+function buildResultParams({ category, propertyCategory, configuration, location, propertyFor, constructionStatus }) {
   const propertyTypes = uniqueValues(category)
     .map((value) => value.toLowerCase())
     .filter((value) => !SKIP_PROPERTY_TYPES.includes(value));
@@ -27,6 +27,8 @@ function buildResultParams({ category, propertyCategory, configuration, location
   if (propertyCategories.length) params.set('category', propertyCategories.join(','));
   if (configurations.length) params.set('bhk', configurations.join(','));
   if (localities.length) params.set('localities', localities.join(','));
+  if (propertyFor) params.set('property_for', propertyFor.toLowerCase());
+  if (constructionStatus) params.set('construction_status', constructionStatus.toLowerCase().replace(/\s+/g, '_'));
   return params;
 }
 

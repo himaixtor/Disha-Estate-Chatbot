@@ -60,6 +60,10 @@ const chatCategory = z.object({
   categoryId: z.number().int().positive().optional(),
   categoryIds: z.array(z.number().int().positive()).min(1).max(20).optional(),
 }).refine((body) => body.categoryId !== undefined || body.categoryIds !== undefined);
+const chatPropertyFor = z.object({ propertyFor: z.enum(['Rent', 'Buy']) });
+const chatConstructionStatus = z.object({
+  constructionStatus: z.enum(['Ready to move', 'Under construction']),
+});
 const chatSubcategory = z.object({
   subcategoryId: z.number().int().positive().optional(),
   subcategoryIds: z.array(z.number().int().positive()).min(1).max(100).optional(),
@@ -122,6 +126,7 @@ module.exports = {
   categoryCreate, categoryUpdate,
   subcategoryCreate, subcategoryUpdate,
   serviceSectorCreate, serviceSectorUpdate,
-  chatName, chatMobile, chatOtp, chatCategory, chatSubcategory, chatConfiguration, chatLocation,
+  chatName, chatMobile, chatOtp, chatCategory, chatPropertyFor, chatConstructionStatus,
+  chatSubcategory, chatConfiguration, chatLocation,
   licenseCreate, roleCreate, roleUpdate, setUserRole,
 };

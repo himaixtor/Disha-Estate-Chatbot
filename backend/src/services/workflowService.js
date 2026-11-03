@@ -23,6 +23,8 @@ const STATES = Object.freeze({
   SEND_OTP: 'SEND_OTP',
   VERIFY_OTP: 'VERIFY_OTP',
   PROPERTY_CATEGORY: 'PROPERTY_CATEGORY',
+  PROPERTY_FOR: 'PROPERTY_FOR',
+  CONSTRUCTION_STATUS: 'CONSTRUCTION_STATUS',
   PROPERTY_SUBCATEGORY: 'PROPERTY_SUBCATEGORY',
   PROPERTY_CONFIGURATION: 'PROPERTY_CONFIGURATION',
   LOCATION: 'LOCATION',
@@ -40,6 +42,8 @@ const STATES = Object.freeze({
 const BACK_MAP = {
   [STATES.COLLECT_MOBILE]: STATES.COLLECT_NAME,
   [STATES.VERIFY_OTP]: STATES.COLLECT_MOBILE,
+  [STATES.PROPERTY_FOR]: STATES.PROPERTY_CATEGORY,
+  [STATES.CONSTRUCTION_STATUS]: STATES.PROPERTY_FOR,
   [STATES.PROPERTY_SUBCATEGORY]: STATES.PROPERTY_CATEGORY,
   [STATES.PROPERTY_CONFIGURATION]: STATES.PROPERTY_SUBCATEGORY,
   [STATES.LOCATION]: STATES.PROPERTY_CONFIGURATION,
@@ -47,6 +51,14 @@ const BACK_MAP = {
   [STATES.NO_MATCH]: STATES.PROPERTY_CATEGORY,
   [STATES.SHOW_RESULTS]: STATES.LOCATION, // "Back to previous menu" after the results link
 };
+const PROPERTY_FOR_OPTIONS = [
+  { id: 'Rent', label: 'Rent' },
+  { id: 'Buy', label: 'Buy' },
+];
+const CONSTRUCTION_STATUS_OPTIONS = [
+  { id: 'Ready to move', label: 'Ready to move' },
+  { id: 'Under construction', label: 'Under construction' },
+];
 
 function assertState(session, ...allowed) {
   if (!allowed.includes(session.state)) {
@@ -96,6 +108,32 @@ function selectedStrings(value) {
   }
   if (!Array.isArray(values)) return [];
   return [...new Set(values.map((item) => String(item || '').trim()).filter(Boolean))];
+}
+
+function needsResidentialFilters(categories) {
+  return categories.some((category) => {
+    const identifiers = [category.cms_slug, category.name]
+      .map((value) => String(value || '').trim().toLowerCase());
+    return identifiers.some((value) => ['residential', 'commercial'].includes(value));
+  });
+}
+
+async function subcategoryPrompt(categoryIds) {
+  const categories = await Promise.all(categoryIds.map((id) => categoriesRepo.findById(id)));
+  const subcategories = (await Promise.all(categoryIds.map((id) => subcategoriesRepo.listActiveLeafOptionsByCategory(id))))
+    .flat()
+    .filter((subcategory, index, all) => all.findIndex((item) => item.id === subcategory.id) === index);
+  const text = categoryIds.length > 1 ? 'Please select one or more property options:' : 'Please select a property option:';
+  return {
+    text,
+    options: subcategories.map((subcategory) => ({
+      id: subcategory.id,
+      label: categoryIds.length > 1
+        ? `${categories.find((category) => category?.id === subcategory.root_category_id)?.name}: ${subcategory.path}`
+        : subcategory.path,
+      categoryId: subcategory.root_category_id,
+    })),
+  };
 }
 
 function configurationOptions(configurations, categoryIds) {
@@ -159,6 +197,13 @@ async function resumeSession(sessionId) {
   return { session, history, reply: await currentPrompt(session) };
 }
 
+async function reconnectSession(sessionId) {
+  const session = await sessionsRepo.findById(sessionId);
+  if (!session) throw new ApiError(404, 'SESSION_NOT_FOUND', 'This chat session no longer exists.');
+  if (session.state === STATES.MATCHING_INVENTORY) return matchInventory(sessionId);
+  return { session, reply: await currentPrompt(session) };
+}
+
 // Options/extra data for the step the session is currently waiting at —
 // same shape as the `reply` every step returns, minus any new message text.
 async function currentPrompt(session) {
@@ -171,6 +216,8 @@ async function currentPrompt(session) {
       return { ...none, otpLength: otpService.OTP_LENGTH, resendAfterSeconds: limitReached ? null : wait };
     }
     case STATES.PROPERTY_CATEGORY:
+    case STATES.PROPERTY_FOR:
+    case STATES.CONSTRUCTION_STATUS:
     case STATES.PROPERTY_SUBCATEGORY:
     case STATES.PROPERTY_CONFIGURATION:
     case STATES.LOCATION: {
@@ -195,6 +242,8 @@ async function currentPrompt(session) {
           propertyCategory: subcategories.filter(Boolean).map((subcategory) => subcategory.cms_slug || subcategory.name),
           configuration: configurations,
           location: sectors.map((sector) => sector.slug),
+          propertyFor: session.property_for,
+          constructionStatus: session.construction_status,
         })
         : {};
       return {
@@ -394,26 +443,61 @@ async function selectCategory(sessionId, rawCategoryIds) {
   await sessionsRepo.updateFields(sessionId, {
     categoryId: categoryIds[0], categoryIds, subcategoryId: null, subcategoryIds: [],
     configurationIds: [], configurationValues: [], state: STATES.PROPERTY_SUBCATEGORY,
+    propertyFor: null, constructionStatus: null,
   });
 
-  const subcategories = (await Promise.all(categoryIds.map((id) => subcategoriesRepo.listActiveLeafOptionsByCategory(id))))
-    .flat()
-    .filter((subcategory, index, all) => all.findIndex((item) => item.id === subcategory.id) === index);
-  const text = categoryIds.length === 1
-    ? `Please select a ${categories[0].name} option:`
-    : 'Please select one or more property options:';
+  const requiresFilters = needsResidentialFilters(categories);
+  const state = requiresFilters ? STATES.PROPERTY_FOR : STATES.PROPERTY_SUBCATEGORY;
+  await sessionsRepo.updateFields(sessionId, { state });
+  const text = requiresFilters
+    ? 'Are you looking to rent or buy?'
+    : categoryIds.length === 1
+      ? `Please select a ${categories[0].name} option:`
+      : 'Please select one or more property options:';
   await messagesRepo.add({ sessionId, responseType: 'bot', messageText: text });
   return {
     session: await reload(sessionId),
     reply: {
       text,
-      options: subcategories.map((subcategory) => ({
-        id: subcategory.id,
-        label: categoryIds.length > 1 ? `${categories.find((category) => category.id === subcategory.root_category_id)?.name}: ${subcategory.path}` : subcategory.path,
-        categoryId: subcategory.root_category_id,
-      })),
+      options: requiresFilters ? PROPERTY_FOR_OPTIONS : (await subcategoryPrompt(categoryIds)).options,
     },
   };
+}
+
+async function selectPropertyFor(sessionId, propertyFor) {
+  const session = await sessionsRepo.findById(sessionId);
+  if (!session) throw new ApiError(404, 'SESSION_NOT_FOUND', 'This chat session no longer exists.');
+  assertState(session, STATES.PROPERTY_FOR);
+  assertVerified(session);
+  if (!PROPERTY_FOR_OPTIONS.some((option) => option.id === propertyFor)) {
+    throw new ApiError(400, 'INVALID_PROPERTY_FOR', 'Please select Rent or Buy.');
+  }
+
+  await messagesRepo.add({ sessionId, responseType: 'user', messageText: propertyFor });
+  const text = 'What is the construction status you prefer?';
+  await sessionsRepo.updateFields(sessionId, { propertyFor, state: STATES.CONSTRUCTION_STATUS });
+  await messagesRepo.add({ sessionId, responseType: 'bot', messageText: text });
+  return {
+    session: await reload(sessionId),
+    reply: { text, options: CONSTRUCTION_STATUS_OPTIONS },
+  };
+}
+
+async function selectConstructionStatus(sessionId, constructionStatus) {
+  const session = await sessionsRepo.findById(sessionId);
+  if (!session) throw new ApiError(404, 'SESSION_NOT_FOUND', 'This chat session no longer exists.');
+  assertState(session, STATES.CONSTRUCTION_STATUS);
+  assertVerified(session);
+  if (!CONSTRUCTION_STATUS_OPTIONS.some((option) => option.id === constructionStatus)) {
+    throw new ApiError(400, 'INVALID_CONSTRUCTION_STATUS', 'Please select a listed construction status.');
+  }
+
+  await messagesRepo.add({ sessionId, responseType: 'user', messageText: constructionStatus });
+  const categoryIds = selectedIds(session.category_ids, session.category_id);
+  const prompt = await subcategoryPrompt(categoryIds);
+  await sessionsRepo.updateFields(sessionId, { constructionStatus, state: STATES.PROPERTY_SUBCATEGORY });
+  await messagesRepo.add({ sessionId, responseType: 'bot', messageText: prompt.text });
+  return { session: await reload(sessionId), reply: prompt };
 }
 
 async function selectSubcategory(sessionId, rawSubcategoryIds) {
@@ -560,6 +644,8 @@ async function matchInventory(sessionId) {
     propertyCategory: subcategories.filter(Boolean).map((subcategory) => subcategory.cms_slug || subcategory.name),
     configuration: configurations,
     location: selectedSectors.map((sector) => sector.slug),
+    propertyFor: session.property_for,
+    constructionStatus: session.construction_status,
   });
 
   if (!result.matched) {
@@ -588,6 +674,11 @@ async function goBack(sessionId) {
   if (!session) throw new ApiError(404, 'SESSION_NOT_FOUND', 'This chat session no longer exists.');
 
   let previous = BACK_MAP[session.state];
+  if (session.state === STATES.PROPERTY_SUBCATEGORY) {
+    const categoryIds = selectedIds(session.category_ids, session.category_id);
+    const categories = await Promise.all(categoryIds.map((id) => categoriesRepo.findById(id)));
+    previous = needsResidentialFilters(categories) ? STATES.CONSTRUCTION_STATUS : STATES.PROPERTY_CATEGORY;
+  }
   if (session.state === STATES.LOCATION) {
     const categoryIds = selectedIds(session.category_ids, session.category_id);
     previous = (await getConfigurationOptions(categoryIds)).length
@@ -617,24 +708,13 @@ async function reenterState(sessionId, state) {
       const categories = await categoriesRepo.listActive();
       return { session, reply: { text: 'What type of property are you looking for?', options: categories.map((c) => ({ id: c.id, label: c.name })) } };
     }
+    case STATES.PROPERTY_FOR:
+      return { session, reply: { text: 'Are you looking to rent or buy?', options: PROPERTY_FOR_OPTIONS } };
+    case STATES.CONSTRUCTION_STATUS:
+      return { session, reply: { text: 'What is the construction status you prefer?', options: CONSTRUCTION_STATUS_OPTIONS } };
     case STATES.PROPERTY_SUBCATEGORY: {
       const categoryIds = selectedIds(session.category_ids, session.category_id);
-      const categories = await Promise.all(categoryIds.map((id) => categoriesRepo.findById(id)));
-      const subcategories = (await Promise.all(categoryIds.map((id) => subcategoriesRepo.listActiveLeafOptionsByCategory(id))))
-        .flat()
-        .filter((subcategory, index, all) => all.findIndex((item) => item.id === subcategory.id) === index);
-      const text = categoryIds.length > 1 ? 'Please select one or more property options:' : 'Please pick an option:';
-      return {
-        session,
-        reply: {
-          text,
-          options: subcategories.map((subcategory) => ({
-            id: subcategory.id,
-            label: categoryIds.length > 1 ? `${categories.find((category) => category?.id === subcategory.root_category_id)?.name}: ${subcategory.path}` : subcategory.path,
-            categoryId: subcategory.root_category_id,
-          })),
-        },
-      };
+      return { session, reply: await subcategoryPrompt(categoryIds) };
     }
     case STATES.PROPERTY_CONFIGURATION: {
       const categoryIds = selectedIds(session.category_ids, session.category_id);
@@ -668,6 +748,7 @@ async function mainMenu(sessionId) {
   await sessionsRepo.updateFields(sessionId, {
     categoryId: null, categoryIds: [], subcategoryId: null, subcategoryIds: [],
     configurationIds: [], configurationValues: [],
+    propertyFor: null, constructionStatus: null,
     serviceSectorId: null, serviceSectorIds: [], state: STATES.PROPERTY_CATEGORY,
   });
   await messagesRepo.add({ sessionId, responseType: 'user', messageText: 'Back to main menu' });
@@ -679,6 +760,7 @@ module.exports = {
   SESSION_RESUME_TTL_SECONDS,
   startSession,
   resumeSession,
+  reconnectSession,
   submitName,
   submitMobile,
   submitVerifiedMobile,
@@ -686,6 +768,8 @@ module.exports = {
   resendOtp,
   changeMobile,
   selectCategory,
+  selectPropertyFor,
+  selectConstructionStatus,
   selectSubcategory,
   selectConfiguration,
   submitLocation,

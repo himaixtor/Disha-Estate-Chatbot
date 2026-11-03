@@ -8,6 +8,7 @@ router.use(chatLimiter);
 
 router.post('/session', ctrl.createSession);
 router.get('/session/:id', ctrl.getSession);
+router.post('/session/:id/reconnect', ctrl.reconnectSession);
 router.post('/session/:id/name', validateBody(schemas.chatName), ctrl.submitName);
 router.post('/session/:id/mobile', validateBody(schemas.chatMobile), ctrl.submitMobile);
 router.post('/session/:id/mobile/verified', validateBody(schemas.chatMobile), ctrl.submitVerifiedMobile);
@@ -15,6 +16,8 @@ router.post('/session/:id/otp/verify', otpLimiter, validateBody(schemas.chatOtp)
 router.post('/session/:id/otp/resend', otpLimiter, ctrl.resendOtp);
 router.post('/session/:id/mobile/change', ctrl.changeMobile);
 router.post('/session/:id/category', validateBody(schemas.chatCategory), ctrl.selectCategory);
+router.post('/session/:id/property-for', validateBody(schemas.chatPropertyFor), ctrl.selectPropertyFor);
+router.post('/session/:id/construction-status', validateBody(schemas.chatConstructionStatus), ctrl.selectConstructionStatus);
 router.post('/session/:id/subcategory', validateBody(schemas.chatSubcategory), ctrl.selectSubcategory);
 router.post('/session/:id/configuration', validateBody(schemas.chatConfiguration), ctrl.selectConfiguration);
 router.post('/session/:id/location', validateBody(schemas.chatLocation), ctrl.submitLocation);

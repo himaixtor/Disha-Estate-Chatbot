@@ -26,6 +26,8 @@ const COLUMN_UPGRADES = [
   ['chatbot_sessions', 'service_sector_ids', 'ADD COLUMN service_sector_ids JSON NULL AFTER service_sector_id'],
   ['chatbot_sessions', 'configuration_ids', 'ADD COLUMN configuration_ids JSON NULL AFTER service_sector_ids'],
   ['chatbot_sessions', 'configuration_values', 'ADD COLUMN configuration_values JSON NULL AFTER configuration_ids'],
+  ['chatbot_sessions', 'property_for', 'ADD COLUMN property_for VARCHAR(20) NULL AFTER configuration_values'],
+  ['chatbot_sessions', 'construction_status', 'ADD COLUMN construction_status VARCHAR(30) NULL AFTER property_for'],
 ];
 
 const INDEX_UPGRADES = [
@@ -72,12 +74,15 @@ async function applyChatSessionStateUpgrade(conn) {
     `SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS
      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'chatbot_sessions' AND COLUMN_NAME = 'state' LIMIT 1`
   );
-  if (!rows.length || rows[0].COLUMN_TYPE.includes("'PROPERTY_CONFIGURATION'")) return;
-  console.log('  ~ chatbot_sessions.state: adding PROPERTY_CONFIGURATION');
+  if (!rows.length || (
+    rows[0].COLUMN_TYPE.includes("'PROPERTY_FOR'")
+    && rows[0].COLUMN_TYPE.includes("'CONSTRUCTION_STATUS'")
+  )) return;
+  console.log('  ~ chatbot_sessions.state: adding property preference states');
   await conn.query(
     `ALTER TABLE chatbot_sessions MODIFY state ENUM(
       'WELCOME','COLLECT_NAME','VERIFY_NAME','COLLECT_MOBILE','SEND_OTP','VERIFY_OTP',
-      'PROPERTY_CATEGORY','PROPERTY_SUBCATEGORY','PROPERTY_CONFIGURATION','LOCATION','VALIDATE_LOCATION',
+      'PROPERTY_CATEGORY','PROPERTY_FOR','CONSTRUCTION_STATUS','PROPERTY_SUBCATEGORY','PROPERTY_CONFIGURATION','LOCATION','VALIDATE_LOCATION',
       'LOCATION_UNSERVICEABLE','MATCHING_INVENTORY','NO_MATCH','SHOW_RESULTS','AI_SCHEME_QA'
     ) NOT NULL DEFAULT 'WELCOME'`
   );

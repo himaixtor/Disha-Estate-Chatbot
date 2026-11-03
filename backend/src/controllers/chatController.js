@@ -24,6 +24,8 @@ function serializeSession(session) {
     subcategoryIds: serializeIds(session.subcategory_ids, session.subcategory_id),
     configurationIds: parseStringArray(session.configuration_ids),
     configurationValues: parseStringArray(session.configuration_values),
+    propertyFor: session.property_for,
+    constructionStatus: session.construction_status,
     serviceSectorId: session.service_sector_id,
     serviceSectorIds: serializeIds(session.service_sector_ids, session.service_sector_id),
     leadStatus: session.lead_status,
@@ -52,6 +54,11 @@ const getSession = asyncHandler(async (req, res) => {
       .map((m) => ({ sender: m.response_type, text: m.message_text, timestamp: m.timestamp })),
     reply,
   });
+});
+
+const reconnectSession = asyncHandler(async (req, res) => {
+  const { session, reply } = await workflow.reconnectSession(req.params.id);
+  ok(res, { session: serializeSession(session), reply });
 });
 
 const submitName = asyncHandler(async (req, res) => {
@@ -96,6 +103,16 @@ const selectSubcategory = asyncHandler(async (req, res) => {
   ok(res, { session: serializeSession(session), reply });
 });
 
+const selectPropertyFor = asyncHandler(async (req, res) => {
+  const { session, reply } = await workflow.selectPropertyFor(req.params.id, req.body.propertyFor);
+  ok(res, { session: serializeSession(session), reply });
+});
+
+const selectConstructionStatus = asyncHandler(async (req, res) => {
+  const { session, reply } = await workflow.selectConstructionStatus(req.params.id, req.body.constructionStatus);
+  ok(res, { session: serializeSession(session), reply });
+});
+
 const selectConfiguration = asyncHandler(async (req, res) => {
   const { session, reply } = await workflow.selectConfiguration(req.params.id, req.body.configurationIds);
   ok(res, { session: serializeSession(session), reply });
@@ -120,6 +137,6 @@ const mainMenu = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
-  createSession, getSession, submitName, submitMobile, submitVerifiedMobile, verifyOtp, resendOtp, changeMobile,
-  selectCategory, selectSubcategory, selectConfiguration, submitLocation, goBack, mainMenu,
+  createSession, getSession, reconnectSession, submitName, submitMobile, submitVerifiedMobile, verifyOtp, resendOtp, changeMobile,
+  selectCategory, selectSubcategory, selectPropertyFor, selectConstructionStatus, selectConfiguration, submitLocation, goBack, mainMenu,
 };

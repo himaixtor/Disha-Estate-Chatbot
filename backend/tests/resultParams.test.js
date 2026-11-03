@@ -69,6 +69,16 @@ test('builds the requested residential property search query', () => {
   );
 });
 
+test('includes rent/buy and construction status search filters', () => {
+  const params = buildResultParams({
+    category: 'residential',
+    propertyFor: 'Rent',
+    constructionStatus: 'Ready to move',
+  });
+  assert.equal(params.get('property_for'), 'rent');
+  assert.equal(params.get('construction_status'), 'ready_to_move');
+});
+
 test('extracts display-safe property fields and featured image URLs', () => {
   const properties = extractProperties({ data: [{
     id: 42,

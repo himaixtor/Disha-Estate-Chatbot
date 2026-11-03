@@ -29,7 +29,6 @@
     accentHover: '#C93420',
     position: 'bottom-right',
     otpStaticString: '7fN9xQ2vL8mR5pK4zT6wY1cB',
-    verifiedCookieName: 'whatsapp_verified',
   };
 
   const config = Object.assign(
@@ -39,7 +38,6 @@
       apiBase: scriptTag?.dataset.apiBase || DEFAULTS.apiBase,
       botName: scriptTag?.dataset.botName || DEFAULTS.botName,
       otpStaticString: scriptTag?.dataset.otpStaticString || DEFAULTS.otpStaticString,
-      verifiedCookieName: scriptTag?.dataset.verifiedCookieName || DEFAULTS.verifiedCookieName,
     },
     window.DishaChatbotConfig || {}
   );
@@ -65,7 +63,7 @@
   const SESSION_COOKIE = 'disha_chat_session';
   // Holds the SHA-256 hash of (static_string + mobile_number) for visitors who
   // have already verified their number, allowing them to bypass the OTP step.
-  const VERIFIED_COOKIE = config.verifiedCookieName || 'xxxxx';
+  const VERIFIED_COOKIE = 'whatsapp_verified';
   const STATIC_SALT = config.otpStaticString || 'xxxxx';
   const SESSION_TTL_SECONDS = 24 * 60 * 60; // backend SESSION_RESUME_TTL_SECONDS
 
@@ -89,12 +87,26 @@
     const secure = location.protocol === 'https:' ? '; Secure' : '';
     const base = `${name}=${encodeURIComponent(value)}; Max-Age=${SESSION_TTL_SECONDS}; Path=/; SameSite=Lax${secure}`;
     // Browsers silently refuse public suffixes (e.g. "co.in"), so the first
-    // domain that actually sticks is the site's own parent domain.
+    // domain that accepts a temporary probe is the site's broadest valid domain.
     for (const domain of cookieDomains()) {
+      const probeName = `${name}_domain_probe`;
+      const probeValue = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      document.cookie = `${probeName}=${probeValue}; Max-Age=60; Path=/; SameSite=Lax${secure}; Domain=.${domain}`;
+      if (readCookie(probeName) !== probeValue) continue;
+
+      // Remove any older host/narrow-domain copy so it cannot shadow this
+      // parent-domain cookie on sibling subdomains.
+      clearCookie(name);
       document.cookie = `${base}; Domain=.${domain}`;
-      if (readCookie(name) === value) return;
+      const written = readCookie(name) === value;
+      document.cookie = `${probeName}=; Max-Age=0; Path=/; SameSite=Lax${secure}; Domain=.${domain}`;
+      if (written) return true;
     }
+    clearCookie(name);
     document.cookie = base;
+    if (readCookie(name) === value) return true;
+    console.error(`[DishaChatbot] Could not write the ${name} cookie.`);
+    return false;
   }
 
   function clearCookie(name) {
@@ -495,7 +507,7 @@
       try {
         await this._handleReply(await this._api(`/chat/session/${this.sessionId}/otp/resend`, { method: 'POST' }));
       } catch (err) {
-        this._addMessage(err.message, 'bot');
+        this._showApiRecovery(err.message);
         this._renderOtpActions(0);
       } finally {
         this._busy = false;
@@ -510,7 +522,7 @@
       try {
         await this._handleReply(await this._api(`/chat/session/${this.sessionId}/mobile/change`, { method: 'POST' }));
       } catch (err) {
-        this._addMessage(err.message, 'bot');
+        this._showApiRecovery(err.message);
       } finally {
         this._busy = false;
       }
@@ -540,6 +552,27 @@
         throw new Error(json?.message || `Request to ${path} failed.`);
       }
       return json.data;
+    }
+
+    _showApiRecovery(message) {
+      this._addMessage(message || 'The request failed. Please reconnect or return to the home menu.', 'bot');
+      if (!this.sessionId) return;
+      this._addOptions([
+        { id: 'reconnect', label: 'Reconnect' },
+        { id: 'home', label: 'Go to home' },
+      ], (option) => (option.id === 'reconnect' ? this._reconnect() : this._mainMenu()));
+    }
+
+    async _reconnect() {
+      if (!this.sessionId || this._busy) return;
+      this._busy = true;
+      try {
+        await this._handleReply(await this._api(`/chat/session/${this.sessionId}/reconnect`, { method: 'POST' }));
+      } catch (err) {
+        this._showApiRecovery(err.message);
+      } finally {
+        this._busy = false;
+      }
     }
 
     _appendMessageTime(bubble, timestamp = new Date()) {
@@ -899,10 +932,12 @@
                 body: { mobileNumber: fullMobile },
               });
             }
+            if (data.session.state === 'PROPERTY_CATEGORY' && data.session.mobileNumber) {
+              writeCookie(VERIFIED_COOKIE, expectedHash);
+            }
             await this._handleReply(data);
           } else {
-            // Cookie does not exist or does not match: write cookie and proceed to mobile OTP verification step
-            writeCookie(VERIFIED_COOKIE, expectedHash);
+            // Do not mark the number verified until OTP verification succeeds.
             const data = await this._api(`/chat/session/${this.sessionId}/mobile`, {
               method: 'POST',
               body: { mobileNumber: fullMobile },
@@ -934,7 +969,7 @@
           await this._handleReply(data);
         }
       } catch (err) {
-        this._addMessage(err.message || 'Something went wrong. Please try again.', 'bot');
+        this._showApiRecovery(err.message || 'Something went wrong. Please try again.');
         this._keepOtpActionsLast();
       }
     }
@@ -970,7 +1005,18 @@
           break;
         }
         case 'PROPERTY_CATEGORY':
+        case 'PROPERTY_FOR':
+        case 'CONSTRUCTION_STATUS':
         case 'PROPERTY_SUBCATEGORY':
+          if (data.session.state === 'PROPERTY_FOR' || data.session.state === 'CONSTRUCTION_STATUS') {
+            this._setInputMode({ hidden: true });
+            this._addOptions(data.reply.options, (option) => (
+              data.session.state === 'PROPERTY_FOR'
+                ? this._selectPropertyFor(option)
+                : this._selectConstructionStatus(option)
+            ), { withBack: true });
+            break;
+          }
           this._setInputMode({ hidden: true });
           this._addOptions(data.reply.options, (options) => this._selectTaxonomy(data.session.state, options), {
             withBack: data.session.state === 'PROPERTY_SUBCATEGORY',
@@ -1021,7 +1067,31 @@
           method: 'POST', body: { [bodyKey]: options.map((option) => option.id) },
         }));
       } catch (err) {
-        this._addMessage(err.message, 'bot');
+        this._showApiRecovery(err.message);
+      }
+    }
+
+    async _selectPropertyFor(option) {
+      try {
+        await this._typingDelay(300);
+        await this._handleReply(await this._api(`/chat/session/${this.sessionId}/property-for`, {
+          method: 'POST',
+          body: { propertyFor: option.id },
+        }));
+      } catch (err) {
+        this._showApiRecovery(err.message);
+      }
+    }
+
+    async _selectConstructionStatus(option) {
+      try {
+        await this._typingDelay(300);
+        await this._handleReply(await this._api(`/chat/session/${this.sessionId}/construction-status`, {
+          method: 'POST',
+          body: { constructionStatus: option.id },
+        }));
+      } catch (err) {
+        this._showApiRecovery(err.message);
       }
     }
 
@@ -1033,7 +1103,7 @@
           body: { configurationIds: options.map((option) => option.id) },
         }));
       } catch (err) {
-        this._addMessage(err.message, 'bot');
+        this._showApiRecovery(err.message);
       }
     }
 
@@ -1053,7 +1123,7 @@
           method: 'POST', body: { serviceSectorIds },
         }));
       } catch (err) {
-        this._addMessage(err.message, 'bot');
+        this._showApiRecovery(err.message);
       }
     }
 
@@ -1061,7 +1131,7 @@
       try {
         await this._handleReply(await this._api(`/chat/session/${this.sessionId}/back`, { method: 'POST' }));
       } catch (err) {
-        this._addMessage(err.message, 'bot');
+        this._showApiRecovery(err.message);
       }
     }
 
@@ -1087,7 +1157,7 @@
       try {
         await this._handleReply(await this._api(`/chat/session/${this.sessionId}/back`, { method: 'POST' }));
       } catch (err) {
-        this._addMessage(err.message, 'bot');
+        this._showApiRecovery(err.message);
       }
     }
 
@@ -1098,7 +1168,7 @@
       try {
         await this._handleReply(await this._api(`/chat/session/${this.sessionId}/main-menu`, { method: 'POST' }));
       } catch (err) {
-        this._addMessage(err.message, 'bot');
+        this._showApiRecovery(err.message);
       }
     }
   }

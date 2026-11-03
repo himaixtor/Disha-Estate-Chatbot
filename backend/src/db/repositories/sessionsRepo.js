@@ -24,6 +24,7 @@ async function updateFields(sessionId, fields) {
     categoryId: 'category_id', subcategoryId: 'subcategory_id', serviceSectorId: 'service_sector_id',
     categoryIds: 'category_ids', subcategoryIds: 'subcategory_ids', serviceSectorIds: 'service_sector_ids',
     configurationIds: 'configuration_ids', configurationValues: 'configuration_values',
+    propertyFor: 'property_for', constructionStatus: 'construction_status',
     state: 'state', leadGenerated: 'lead_generated', leadStatus: 'lead_status', isFocus: 'is_focus',
     reviewRating: 'review_rating', userUid: 'user_uid', conversationTitle: 'conversation_title',
     deletedByOwner: 'deleted_by_owner', isPinned: 'is_pinned',
