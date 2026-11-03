@@ -26,6 +26,8 @@ function serializeSession(session) {
     configurationValues: parseStringArray(session.configuration_values),
     propertyFor: session.property_for,
     constructionStatus: session.construction_status,
+    minBudget: session.min_budget == null ? null : Number(session.min_budget),
+    maxBudget: session.max_budget == null ? null : Number(session.max_budget),
     serviceSectorId: session.service_sector_id,
     serviceSectorIds: serializeIds(session.service_sector_ids, session.service_sector_id),
     leadStatus: session.lead_status,
@@ -113,6 +115,11 @@ const selectConstructionStatus = asyncHandler(async (req, res) => {
   ok(res, { session: serializeSession(session), reply });
 });
 
+const submitBudget = asyncHandler(async (req, res) => {
+  const { session, reply } = await workflow.submitBudget(req.params.id, req.body.minBudget, req.body.maxBudget);
+  ok(res, { session: serializeSession(session), reply });
+});
+
 const selectConfiguration = asyncHandler(async (req, res) => {
   const { session, reply } = await workflow.selectConfiguration(req.params.id, req.body.configurationIds);
   ok(res, { session: serializeSession(session), reply });
@@ -138,5 +145,6 @@ const mainMenu = asyncHandler(async (req, res) => {
 
 module.exports = {
   createSession, getSession, reconnectSession, submitName, submitMobile, submitVerifiedMobile, verifyOtp, resendOtp, changeMobile,
-  selectCategory, selectSubcategory, selectPropertyFor, selectConstructionStatus, selectConfiguration, submitLocation, goBack, mainMenu,
+  selectCategory, selectSubcategory, selectPropertyFor, selectConstructionStatus, submitBudget,
+  selectConfiguration, submitLocation, goBack, mainMenu,
 };

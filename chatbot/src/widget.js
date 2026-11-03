@@ -273,6 +273,13 @@
     .footer input { flex: 1; padding: 10px 14px; border: 1px solid #E8D9C9; border-radius: 20px; font-size: .88rem; outline: none; min-width: 0; }
     .footer input.hidden { display: none; }
     .footer input:focus { border-color: ${config.accentColor}; }
+    .budget-form { display: grid; gap: 10px; width: 100%; }
+    .budget-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .budget-field { display: grid; gap: 5px; color: #75675F; font-size: .75rem; }
+    .budget-field input { width: 100%; min-width: 0; box-sizing: border-box; padding: 9px 10px; border: 1px solid #E8D9C9; border-radius: 9px; color: #241C18; font-size: .85rem; outline: 0; }
+    .budget-field input:focus { border-color: ${config.accentColor}; }
+    .budget-error { color: #B10E16; font-size: .75rem; }
+    .budget-actions { display: flex; gap: 8px; }
     .otp-inputs { display: flex; flex: 1; min-width: 0; justify-content: center; gap: 8px; }
     .otp-inputs.hidden { display: none; }
     .otp-digit { width: 42px; height: 48px; flex: 1; min-width: 0; max-width: 48px; border: 1px solid #E8D9C9; border-radius: 10px; padding: 0; text-align: center; font-size: 1.1rem; outline: 0; color: #241C18; }
@@ -854,6 +861,100 @@
       this.el.form.classList.toggle('hidden', hidden);
     }
 
+    _addBudgetForm(session = {}) {
+      const form = document.createElement('form');
+      form.className = 'budget-form';
+
+      const fields = document.createElement('div');
+      fields.className = 'budget-fields';
+      const minField = document.createElement('label');
+      minField.className = 'budget-field';
+      minField.textContent = 'Minimum budget (₹)';
+      const minInput = document.createElement('input');
+      minInput.type = 'number';
+      minInput.name = 'minBudget';
+      minInput.min = '0.01';
+      minInput.step = '0.01';
+      minInput.required = true;
+      minInput.inputMode = 'decimal';
+      if (session.minBudget != null) minInput.value = session.minBudget;
+      minField.appendChild(minInput);
+
+      const maxField = document.createElement('label');
+      maxField.className = 'budget-field';
+      maxField.textContent = 'Maximum budget (₹)';
+      const maxInput = document.createElement('input');
+      maxInput.type = 'number';
+      maxInput.name = 'maxBudget';
+      maxInput.min = '0.01';
+      maxInput.step = '0.01';
+      maxInput.required = true;
+      maxInput.inputMode = 'decimal';
+      if (session.maxBudget != null) maxInput.value = session.maxBudget;
+      maxField.appendChild(maxInput);
+      fields.append(minField, maxField);
+
+      const error = document.createElement('div');
+      error.className = 'budget-error';
+      error.setAttribute('role', 'alert');
+      error.hidden = true;
+
+      const actions = document.createElement('div');
+      actions.className = 'budget-actions';
+      const back = document.createElement('button');
+      back.type = 'button';
+      back.className = 'chip back';
+      back.textContent = '\u2039 Back';
+      back.addEventListener('click', () => {
+        form.remove();
+        this._addMessage('Back', 'user');
+        this._back();
+      });
+      const submit = document.createElement('button');
+      submit.type = 'submit';
+      submit.className = 'chip continue';
+      submit.textContent = 'Continue';
+      actions.append(back, submit);
+      form.append(fields, error, actions);
+
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const minBudget = minInput.valueAsNumber;
+        const maxBudget = maxInput.valueAsNumber;
+        if (!Number.isFinite(minBudget) || minBudget <= 0 || !Number.isFinite(maxBudget) || maxBudget <= 0) {
+          error.textContent = 'Enter positive numbers for both budget amounts.';
+          error.hidden = false;
+          return;
+        }
+        if (maxBudget < minBudget) {
+          error.textContent = 'Maximum budget must be greater than or equal to minimum budget.';
+          error.hidden = false;
+          maxInput.focus();
+          return;
+        }
+
+        submit.disabled = true;
+        error.hidden = true;
+        try {
+          const data = await this._api(`/chat/session/${this.sessionId}/budget`, {
+            method: 'POST',
+            body: { minBudget, maxBudget },
+          });
+          form.remove();
+          this._addMessage(`₹${minBudget} - ₹${maxBudget}`, 'user');
+          await this._handleReply(data);
+        } catch (err) {
+          submit.disabled = false;
+          error.textContent = err.message || 'Could not save your budget. Please try again.';
+          error.hidden = false;
+        }
+      });
+
+      this.el.body.appendChild(form);
+      this.el.body.scrollTop = this.el.body.scrollHeight;
+      minInput.focus();
+    }
+
     // Rebuilds a chat started within the last 24h (cookie) — history plus the
     // current step's buttons/input. Returns false if there's nothing to resume.
     async _resume() {
@@ -981,6 +1082,7 @@
       // Option chips from an earlier step must not stay clickable once the
       // conversation has moved on (e.g. after Back to main menu).
       this.el.body.querySelectorAll('.options').forEach((el) => el.remove());
+      this.el.body.querySelectorAll('.budget-form').forEach((el) => el.remove());
       this._lastKnownState = data.session.state;
       if (!silent) {
         await this._typingDelay(350);
@@ -1004,6 +1106,10 @@
           this._renderOtpActions(data.reply.resendAfterSeconds === undefined ? 30 : data.reply.resendAfterSeconds);
           break;
         }
+        case 'BUDGET':
+          this._setInputMode({ hidden: true });
+          this._addBudgetForm(data.session);
+          break;
         case 'PROPERTY_CATEGORY':
         case 'PROPERTY_FOR':
         case 'CONSTRUCTION_STATUS':

@@ -25,6 +25,7 @@ const STATES = Object.freeze({
   PROPERTY_CATEGORY: 'PROPERTY_CATEGORY',
   PROPERTY_FOR: 'PROPERTY_FOR',
   CONSTRUCTION_STATUS: 'CONSTRUCTION_STATUS',
+  BUDGET: 'BUDGET',
   PROPERTY_SUBCATEGORY: 'PROPERTY_SUBCATEGORY',
   PROPERTY_CONFIGURATION: 'PROPERTY_CONFIGURATION',
   LOCATION: 'LOCATION',
@@ -44,7 +45,8 @@ const BACK_MAP = {
   [STATES.VERIFY_OTP]: STATES.COLLECT_MOBILE,
   [STATES.PROPERTY_FOR]: STATES.PROPERTY_CATEGORY,
   [STATES.CONSTRUCTION_STATUS]: STATES.PROPERTY_FOR,
-  [STATES.PROPERTY_SUBCATEGORY]: STATES.PROPERTY_CATEGORY,
+  [STATES.BUDGET]: STATES.CONSTRUCTION_STATUS,
+  [STATES.PROPERTY_SUBCATEGORY]: STATES.BUDGET,
   [STATES.PROPERTY_CONFIGURATION]: STATES.PROPERTY_SUBCATEGORY,
   [STATES.LOCATION]: STATES.PROPERTY_CONFIGURATION,
   [STATES.LOCATION_UNSERVICEABLE]: STATES.LOCATION,
@@ -218,6 +220,7 @@ async function currentPrompt(session) {
     case STATES.PROPERTY_CATEGORY:
     case STATES.PROPERTY_FOR:
     case STATES.CONSTRUCTION_STATUS:
+    case STATES.BUDGET:
     case STATES.PROPERTY_SUBCATEGORY:
     case STATES.PROPERTY_CONFIGURATION:
     case STATES.LOCATION: {
@@ -244,6 +247,8 @@ async function currentPrompt(session) {
           location: sectors.map((sector) => sector.slug),
           propertyFor: session.property_for,
           constructionStatus: session.construction_status,
+          minBudget: session.min_budget,
+          maxBudget: session.max_budget,
         })
         : {};
       return {
@@ -444,6 +449,7 @@ async function selectCategory(sessionId, rawCategoryIds) {
     categoryId: categoryIds[0], categoryIds, subcategoryId: null, subcategoryIds: [],
     configurationIds: [], configurationValues: [], state: STATES.PROPERTY_SUBCATEGORY,
     propertyFor: null, constructionStatus: null,
+    minBudget: null, maxBudget: null,
   });
 
   const requiresFilters = needsResidentialFilters(categories);
@@ -493,9 +499,31 @@ async function selectConstructionStatus(sessionId, constructionStatus) {
   }
 
   await messagesRepo.add({ sessionId, responseType: 'user', messageText: constructionStatus });
+  const text = 'What is your budget range in Indian rupees?';
+  await sessionsRepo.updateFields(sessionId, { constructionStatus, state: STATES.BUDGET });
+  await messagesRepo.add({ sessionId, responseType: 'bot', messageText: text });
+  return { session: await reload(sessionId), reply: { text, options: null } };
+}
+
+async function submitBudget(sessionId, minBudget, maxBudget) {
+  const session = await sessionsRepo.findById(sessionId);
+  if (!session) throw new ApiError(404, 'SESSION_NOT_FOUND', 'This chat session no longer exists.');
+  assertState(session, STATES.BUDGET);
+  assertVerified(session);
+  if (!Number.isFinite(minBudget) || minBudget <= 0 || !Number.isFinite(maxBudget) || maxBudget <= 0) {
+    throw new ApiError(400, 'INVALID_BUDGET', 'Please enter positive numbers for both budget amounts.');
+  }
+  if (maxBudget < minBudget) {
+    throw new ApiError(400, 'INVALID_BUDGET_RANGE', 'Maximum budget must be greater than or equal to minimum budget.');
+  }
+
+  const budgetText = `₹${minBudget} - ₹${maxBudget}`;
+  await messagesRepo.add({ sessionId, responseType: 'user', messageText: budgetText });
   const categoryIds = selectedIds(session.category_ids, session.category_id);
   const prompt = await subcategoryPrompt(categoryIds);
-  await sessionsRepo.updateFields(sessionId, { constructionStatus, state: STATES.PROPERTY_SUBCATEGORY });
+  await sessionsRepo.updateFields(sessionId, {
+    minBudget, maxBudget, state: STATES.PROPERTY_SUBCATEGORY,
+  });
   await messagesRepo.add({ sessionId, responseType: 'bot', messageText: prompt.text });
   return { session: await reload(sessionId), reply: prompt };
 }
@@ -646,6 +674,8 @@ async function matchInventory(sessionId) {
     location: selectedSectors.map((sector) => sector.slug),
     propertyFor: session.property_for,
     constructionStatus: session.construction_status,
+    minBudget: session.min_budget,
+    maxBudget: session.max_budget,
   });
 
   if (!result.matched) {
@@ -677,7 +707,7 @@ async function goBack(sessionId) {
   if (session.state === STATES.PROPERTY_SUBCATEGORY) {
     const categoryIds = selectedIds(session.category_ids, session.category_id);
     const categories = await Promise.all(categoryIds.map((id) => categoriesRepo.findById(id)));
-    previous = needsResidentialFilters(categories) ? STATES.CONSTRUCTION_STATUS : STATES.PROPERTY_CATEGORY;
+    previous = needsResidentialFilters(categories) ? STATES.BUDGET : STATES.PROPERTY_CATEGORY;
   }
   if (session.state === STATES.LOCATION) {
     const categoryIds = selectedIds(session.category_ids, session.category_id);
@@ -712,6 +742,8 @@ async function reenterState(sessionId, state) {
       return { session, reply: { text: 'Are you looking to rent or buy?', options: PROPERTY_FOR_OPTIONS } };
     case STATES.CONSTRUCTION_STATUS:
       return { session, reply: { text: 'What is the construction status you prefer?', options: CONSTRUCTION_STATUS_OPTIONS } };
+    case STATES.BUDGET:
+      return { session, reply: { text: 'What is your budget range in Indian rupees?', options: null } };
     case STATES.PROPERTY_SUBCATEGORY: {
       const categoryIds = selectedIds(session.category_ids, session.category_id);
       return { session, reply: await subcategoryPrompt(categoryIds) };
@@ -749,6 +781,7 @@ async function mainMenu(sessionId) {
     categoryId: null, categoryIds: [], subcategoryId: null, subcategoryIds: [],
     configurationIds: [], configurationValues: [],
     propertyFor: null, constructionStatus: null,
+    minBudget: null, maxBudget: null,
     serviceSectorId: null, serviceSectorIds: [], state: STATES.PROPERTY_CATEGORY,
   });
   await messagesRepo.add({ sessionId, responseType: 'user', messageText: 'Back to main menu' });
@@ -770,6 +803,7 @@ module.exports = {
   selectCategory,
   selectPropertyFor,
   selectConstructionStatus,
+  submitBudget,
   selectSubcategory,
   selectConfiguration,
   submitLocation,

@@ -64,6 +64,13 @@ const chatPropertyFor = z.object({ propertyFor: z.enum(['Rent', 'Buy']) });
 const chatConstructionStatus = z.object({
   constructionStatus: z.enum(['Ready to move', 'Under construction']),
 });
+const chatBudget = z.object({
+  minBudget: z.number().finite().positive(),
+  maxBudget: z.number().finite().positive(),
+}).refine((body) => body.maxBudget >= body.minBudget, {
+  message: 'Maximum budget must be greater than or equal to minimum budget.',
+  path: ['maxBudget'],
+});
 const chatSubcategory = z.object({
   subcategoryId: z.number().int().positive().optional(),
   subcategoryIds: z.array(z.number().int().positive()).min(1).max(100).optional(),
@@ -126,7 +133,7 @@ module.exports = {
   categoryCreate, categoryUpdate,
   subcategoryCreate, subcategoryUpdate,
   serviceSectorCreate, serviceSectorUpdate,
-  chatName, chatMobile, chatOtp, chatCategory, chatPropertyFor, chatConstructionStatus,
+  chatName, chatMobile, chatOtp, chatCategory, chatPropertyFor, chatConstructionStatus, chatBudget,
   chatSubcategory, chatConfiguration, chatLocation,
   licenseCreate, roleCreate, roleUpdate, setUserRole,
 };

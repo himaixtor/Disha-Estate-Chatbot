@@ -12,7 +12,17 @@ function uniqueValues(value) {
     .filter(Boolean))];
 }
 
-function buildResultParams({ category, propertyCategory, configuration, location, propertyFor, constructionStatus }) {
+function formatPropertyPrice(amount) {
+  const crore = 10000000;
+  const lakh = 100000;
+  return amount >= crore
+    ? `${(amount / crore).toFixed(2)} Cr`
+    : `${(amount / lakh).toFixed(2)} Lac`;
+}
+
+function buildResultParams({
+  category, propertyCategory, configuration, location, propertyFor, constructionStatus, minBudget, maxBudget,
+}) {
   const propertyTypes = uniqueValues(category)
     .map((value) => value.toLowerCase())
     .filter((value) => !SKIP_PROPERTY_TYPES.includes(value));
@@ -29,6 +39,8 @@ function buildResultParams({ category, propertyCategory, configuration, location
   if (localities.length) params.set('localities', localities.join(','));
   if (propertyFor) params.set('property_for', propertyFor.toLowerCase());
   if (constructionStatus) params.set('construction_status', constructionStatus.toLowerCase().replace(/\s+/g, '_'));
+  if (minBudget != null) params.set('min_price', formatPropertyPrice(minBudget));
+  if (maxBudget != null) params.set('max_price', formatPropertyPrice(maxBudget));
   return params;
 }
 

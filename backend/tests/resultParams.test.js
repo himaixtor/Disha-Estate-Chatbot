@@ -79,6 +79,27 @@ test('includes rent/buy and construction status search filters', () => {
   assert.equal(params.get('construction_status'), 'ready_to_move');
 });
 
+test('includes minimum and maximum budget filters', () => {
+  const params = buildResultParams({
+    category: 'Residential',
+    location: 'gujarat-ahmedabad',
+    minBudget: 5000000,
+    maxBudget: 35000000,
+  });
+  assert.equal(params.get('min_price'), '50.00 Lac');
+  assert.equal(params.get('max_price'), '3.50 Cr');
+  assert.equal(
+    params.toString(),
+    'property_type=residential&localities=gujarat-ahmedabad&min_price=50.00+Lac&max_price=3.50+Cr'
+  );
+});
+
+test('formats budgets below one crore in lakhs and larger budgets in crores', () => {
+  const params = buildResultParams({ minBudget: 250000, maxBudget: 10000000 });
+  assert.equal(params.get('min_price'), '2.50 Lac');
+  assert.equal(params.get('max_price'), '1.00 Cr');
+});
+
 test('extracts display-safe property fields and featured image URLs', () => {
   const properties = extractProperties({ data: [{
     id: 42,
